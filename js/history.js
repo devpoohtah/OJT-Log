@@ -10,7 +10,8 @@ import {
   doc,
   updateDoc,
   deleteDoc,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 setupLogout();
@@ -23,15 +24,63 @@ const tableBody = document.getElementById("historyTableBody");
 const search = document.getElementById("search");
 const historyCount = document.getElementById("historyCount");
 
-if (!tableBody || !search || !historyCount) {
-  throw new Error("Task History HTML elements are missing.");
+const prevPage = document.getElementById("prevPage");
+const nextPage = document.getElementById("nextPage");
+const pageInfo = document.getElementById("pageInfo");
+
+const editModal = document.getElementById("editModal");
+const editForm = document.getElementById("editForm");
+const editDate = document.getElementById("editDate");
+const editTitle = document.getElementById("editTitle");
+const editDescription = document.getElementById("editDescription");
+const editCategory = document.getElementById("editCategory");
+const editMessage = document.getElementById("editMessage");
+const saveEdit = document.getElementById("saveEdit");
+
+const closeModal = document.getElementById("closeModal");
+const cancelEdit = document.getElementById("cancelEdit");
+
+const requiredElements = [
+  tableBody, search, historyCount, prevPage, nextPage,
+  pageInfo, editModal, editForm, editDate, editTitle,
+  editDescription, editCategory, editMessage, saveEdit,
+  closeModal, cancelEdit
+];
+
+if (requiredElements.some(element => !element)) {
+  throw new Error("Some Task History HTML elements are missing.");
 }
 
+// =====================================
+// STATE
+// =====================================
+
+const PAGE_SIZE = 10;
+
 let logs = [];
+let currentPage = 1;
+let currentUser = null;
+let editingActivity = null;
 
 // =====================================
 // HELPERS
 // =====================================
+
+function getAllActivities() {
+  const rows = [];
+
+  logs.forEach(log => {
+    (log.activities || []).forEach((activity, index) => {
+      rows.push({
+        log,
+        activity,
+        index
+      });
+    });
+  });
+
+  return rows;
+}
 
 function createCell(value, className = "") {
   const cell = document.createElement("td");
@@ -44,15 +93,11 @@ function createCell(value, className = "") {
   return cell;
 }
 
-function renderHistory() {
-  tableBody.replaceChildren();
-
+function getFilteredActivities() {
   const term = search.value.toLowerCase().trim();
 
-  const rows = [];
-
-  logs.forEach(log => {
-    (log.activities || []).forEach((activity, index) => {
+  return getAllActivities()
+    .filter(({ log, activity }) => {
       const searchable = [
         log.date,
         activity.title,
@@ -60,60 +105,80 @@ function renderHistory() {
         activity.category
       ].join(" ").toLowerCase();
 
-      if (searchable.includes(term)) {
-        rows.push({ log, activity, index });
-      }
-    });
-  });
+      return searchable.includes(term);
+    })
+    .sort((a, b) => {
+      const dateComparison =
+        (b.log.date || "").localeCompare(a.log.date || "");
 
-  rows.sort((a, b) =>
-    (b.log.date || "").localeCompare(a.log.date || "")
+      if (dateComparison !== 0) return dateComparison;
+
+      return (a.activity.title || "").localeCompare(
+        b.activity.title || ""
+      );
+    });
+}
+
+// =====================================
+// RENDER TABLE
+// =====================================
+
+function renderHistory() {
+  tableBody.replaceChildren();
+
+  const rows = getFilteredActivities();
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(rows.length / PAGE_SIZE)
   );
 
-  if (!rows.length) {
+  if (currentPage > totalPages) {
+    currentPage = totalPages;
+  }
+
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const pageRows = rows.slice(start, start + PAGE_SIZE);
+
+  if (!pageRows.length) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
 
     cell.colSpan = 5;
     cell.className = "empty-state";
-    cell.textContent = logs.length
-      ? "No matching activities found."
-      : "No activities recorded yet.";
+    cell.textContent = rows.length
+      ? "No activities on this page."
+      : "No matching activities found.";
 
     row.appendChild(cell);
     tableBody.appendChild(row);
-
-    historyCount.textContent = "0 activities found";
-    return;
   }
 
-  rows.forEach(({ log, activity, index }) => {
+  pageRows.forEach(({ log, activity, index }) => {
     const row = document.createElement("tr");
 
-    // Date
     row.appendChild(createCell(log.date));
 
-    // Activity title
     row.appendChild(
-      createCell(activity.title || "Untitled activity", "activity-title")
+      createCell(
+        activity.title || "Untitled activity",
+        "activity-title"
+      )
     );
 
-    // Description
     row.appendChild(
       createCell(activity.description, "description-cell")
     );
 
-    // Category
     const categoryCell = document.createElement("td");
-
     const badge = document.createElement("span");
+
     badge.className = "category-badge";
     badge.textContent = activity.category || "No category";
 
     categoryCell.appendChild(badge);
     row.appendChild(categoryCell);
 
-    // Actions
     const actionsCell = document.createElement("td");
     actionsCell.className = "table-actions";
 
@@ -122,55 +187,8 @@ function renderHistory() {
     editButton.className = "small-btn";
     editButton.textContent = "Edit";
 
-    editButton.addEventListener("click", async () => {
-      const newTitle = prompt("Activity title:", activity.title || "");
-
-      if (newTitle === null) return;
-
-      const newDescription = prompt(
-        "Description:",
-        activity.description || ""
-      );
-
-      if (newDescription === null) return;
-
-      const newCategory = prompt(
-        "Category:",
-        activity.category || ""
-      );
-
-      if (newCategory === null) return;
-
-      if (!newTitle.trim() || !newDescription.trim()) {
-        alert("Title and description are required.");
-        return;
-      }
-
-      const updatedActivities = [...log.activities];
-
-      updatedActivities[index] = {
-        ...activity,
-        title: newTitle.trim(),
-        description: newDescription.trim(),
-        category: newCategory.trim()
-      };
-
-      try {
-        editButton.disabled = true;
-
-        await updateDoc(doc(db, "dailyLogs", log.id), {
-          activities: updatedActivities,
-          updatedAt: serverTimestamp()
-        });
-
-        log.activities = updatedActivities;
-        renderHistory();
-
-      } catch (error) {
-        console.error("Edit error:", error);
-        alert("Unable to update activity: " + error.message);
-        editButton.disabled = false;
-      }
+    editButton.addEventListener("click", () => {
+      openEditModal(log, activity, index);
     });
 
     const deleteButton = document.createElement("button");
@@ -178,39 +196,8 @@ function renderHistory() {
     deleteButton.className = "small-btn delete-btn";
     deleteButton.textContent = "Delete";
 
-    deleteButton.addEventListener("click", async () => {
-      if (!confirm(
-        `Delete "${activity.title || "this activity"}"?`
-      )) return;
-
-      const updatedActivities = log.activities.filter(
-        (_, i) => i !== index
-      );
-
-      try {
-        deleteButton.disabled = true;
-
-        if (updatedActivities.length === 0) {
-          await deleteDoc(doc(db, "dailyLogs", log.id));
-
-          logs = logs.filter(item => item.id !== log.id);
-
-        } else {
-          await updateDoc(doc(db, "dailyLogs", log.id), {
-            activities: updatedActivities,
-            updatedAt: serverTimestamp()
-          });
-
-          log.activities = updatedActivities;
-        }
-
-        renderHistory();
-
-      } catch (error) {
-        console.error("Delete error:", error);
-        alert("Unable to delete activity: " + error.message);
-        deleteButton.disabled = false;
-      }
+    deleteButton.addEventListener("click", () => {
+      deleteActivity(log, index, deleteButton);
     });
 
     actionsCell.append(editButton, deleteButton);
@@ -221,19 +208,257 @@ function renderHistory() {
 
   historyCount.textContent =
     `${rows.length} ${rows.length === 1 ? "activity" : "activities"} found`;
+
+  pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+
+  prevPage.disabled = currentPage <= 1;
+  nextPage.disabled = currentPage >= totalPages;
 }
 
 // =====================================
-// SEARCH
+// PAGINATION
 // =====================================
 
-search.addEventListener("input", renderHistory);
+prevPage.addEventListener("click", () => {
+  if (currentPage > 1) {
+    currentPage--;
+    renderHistory();
+  }
+});
+
+nextPage.addEventListener("click", () => {
+  const totalPages = Math.max(
+    1,
+    Math.ceil(getFilteredActivities().length / PAGE_SIZE)
+  );
+
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderHistory();
+  }
+});
+
+search.addEventListener("input", () => {
+  currentPage = 1;
+  renderHistory();
+});
+
+// =====================================
+// EDIT MODAL
+// =====================================
+
+function openEditModal(log, activity, index) {
+  editingActivity = {
+    logId: log.id,
+    index,
+    originalDate: log.date
+  };
+
+  editDate.value = log.date || "";
+  editTitle.value = activity.title || "";
+  editDescription.value = activity.description || "";
+  editCategory.value = activity.category || "";
+
+  editMessage.textContent = "";
+  editModal.hidden = false;
+
+  document.body.classList.add("modal-open");
+  editTitle.focus();
+}
+
+function closeEditModal() {
+  editModal.hidden = true;
+  document.body.classList.remove("modal-open");
+  editingActivity = null;
+  editForm.reset();
+  editMessage.textContent = "";
+}
+
+closeModal.addEventListener("click", closeEditModal);
+cancelEdit.addEventListener("click", closeEditModal);
+
+editModal.addEventListener("click", event => {
+  if (event.target === editModal) {
+    closeEditModal();
+  }
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !editModal.hidden) {
+    closeEditModal();
+  }
+});
+
+// =====================================
+// SAVE EDIT
+// =====================================
+
+editForm.addEventListener("submit", async event => {
+  event.preventDefault();
+
+  if (!editingActivity) return;
+
+  const title = editTitle.value.trim();
+  const description = editDescription.value.trim();
+  const category = editCategory.value.trim();
+  const newDate = editDate.value;
+
+  if (!title || !description || !newDate) {
+    editMessage.textContent =
+      "Please complete the date, title, and description.";
+    return;
+  }
+
+  const log = logs.find(item =>
+    item.id === editingActivity.logId
+  );
+
+  if (!log || !log.activities[editingActivity.index]) {
+    editMessage.textContent =
+      "Activity not found. Please refresh the page.";
+    return;
+  }
+
+  const oldIndex = editingActivity.index;
+
+  const updatedActivity = {
+    ...log.activities[oldIndex],
+    title,
+    description,
+    category
+  };
+
+  saveEdit.disabled = true;
+  saveEdit.textContent = "Saving...";
+
+  try {
+    if (newDate === log.date) {
+      // Only update the selected activity.
+      const updatedActivities = [...log.activities];
+
+      updatedActivities[oldIndex] = updatedActivity;
+
+      await updateDoc(doc(db, "dailyLogs", log.id), {
+        activities: updatedActivities,
+        updatedAt: serverTimestamp()
+      });
+
+      log.activities = updatedActivities;
+
+    } else {
+      // Move just this activity to another daily log.
+      // Other activities in the original log stay on their date.
+
+      const updatedActivities = log.activities.filter(
+        (_, index) => index !== oldIndex
+      );
+
+      const batch = writeBatch(db);
+
+      const newLogRef = doc(collection(db, "dailyLogs"));
+
+      batch.set(newLogRef, {
+        userId: currentUser.uid,
+        date: newDate,
+        activities: [updatedActivity],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      if (updatedActivities.length === 0) {
+        batch.delete(doc(db, "dailyLogs", log.id));
+      } else {
+        batch.update(doc(db, "dailyLogs", log.id), {
+          activities: updatedActivities,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      await batch.commit();
+
+      log.activities = updatedActivities;
+
+      if (!updatedActivities.length) {
+        logs = logs.filter(item => item.id !== log.id);
+      }
+
+      logs.push({
+        id: newLogRef.id,
+        userId: currentUser.uid,
+        date: newDate,
+        activities: [updatedActivity]
+      });
+    }
+
+    closeEditModal();
+    renderHistory();
+
+  } catch (error) {
+    console.error("Edit error:", error);
+
+    editMessage.textContent =
+      `Unable to save: ${error.code || error.message}`;
+
+  } finally {
+    saveEdit.disabled = false;
+    saveEdit.textContent = "Save Changes";
+  }
+});
+
+// =====================================
+// DELETE ACTIVITY
+// =====================================
+
+async function deleteActivity(log, index, button) {
+  const activity = log.activities[index];
+
+  if (!confirm(
+    `Are you sure you want to delete "${activity.title || "this activity"}"?`
+  )) {
+    return;
+  }
+
+  button.disabled = true;
+
+  const updatedActivities = log.activities.filter(
+    (_, i) => i !== index
+  );
+
+  try {
+    if (updatedActivities.length === 0) {
+      await deleteDoc(doc(db, "dailyLogs", log.id));
+
+      logs = logs.filter(item => item.id !== log.id);
+
+    } else {
+      await updateDoc(doc(db, "dailyLogs", log.id), {
+        activities: updatedActivities,
+        updatedAt: serverTimestamp()
+      });
+
+      log.activities = updatedActivities;
+    }
+
+    renderHistory();
+
+  } catch (error) {
+    console.error("Delete error:", error);
+
+    alert(
+      `Unable to delete activity: ${error.code || error.message}`
+    );
+
+    button.disabled = false;
+  }
+}
 
 // =====================================
 // LOAD FIRESTORE
 // =====================================
 
 requireAuth(async user => {
+  currentUser = user;
+
   tableBody.innerHTML = `
     <tr>
       <td colspan="5" class="empty-state">
@@ -255,10 +480,7 @@ requireAuth(async user => {
       ...document.data()
     }));
 
-    logs.sort((a, b) =>
-      (b.date || "").localeCompare(a.date || "")
-    );
-
+    currentPage = 1;
     renderHistory();
 
   } catch (error) {
@@ -272,5 +494,7 @@ requireAuth(async user => {
         </td>
       </tr>
     `;
+
+    historyCount.textContent = "Unable to load activities.";
   }
 });
