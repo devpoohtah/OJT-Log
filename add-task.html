@@ -1,0 +1,69 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Task | InternLog</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="layout">
+  <aside class="sidebar">
+    <h2>IL <span>InternLog</span></h2>
+    <nav>
+      <a href="dashboard.html">My Tasks</a>
+      <a class="active" href="add-task.html">Add New Task</a>
+      <a href="history.html">Task History</a>
+    </nav>
+    <button id="logout" class="logout">Sign Out</button>
+  </aside>
+
+  <main class="main">
+    <header>
+      <div>
+        <h1>Add New Task</h1>
+        <p class="muted">Record your daily internship activities.</p>
+      </div>
+    </header>
+
+    <section class="panel form-panel">
+      <form id="taskForm">
+        <label>Date</label>
+        <input type="date" id="date" required>
+
+        <label>Task Title</label>
+        <input id="title" type="text" placeholder="Task title" required>
+
+        <label>Description</label>
+        <textarea id="description" rows="5" placeholder="Describe your activity..." required></textarea>
+
+        <label>Category</label>
+        <select id="category" required>
+          <option value="">Select category</option>
+          <option>Development</option>
+          <option>Documentation</option>
+          <option>Research</option>
+          <option>Meetings</option>
+          <option>Testing</option>
+          <option>Other</option>
+        </select>
+
+        <label>Hours Rendered</label>
+        <input type="number" id="hours" min="0.1" max="24" step="0.1" required>
+
+        <div class="actions">
+          <a href="dashboard.html" class="btn secondary">Cancel</a>
+          <button type="submit" class="btn primary">Save Task</button>
+        </div>
+
+        <p id="formMessage" class="message"></p>
+      </form>
+    </section>
+  </main>
+</div>
+
+<script type="module" src="js/add-task.js"></script>
+</body>
+</html>
