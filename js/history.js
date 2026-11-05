@@ -15,149 +15,207 @@ import {
 
 setupLogout();
 
-const list = document.getElementById("historyList");
+const tableBody = document.getElementById("historyTableBody");
 const search = document.getElementById("search");
+const historyCount = document.getElementById("historyCount");
 
 let logs = [];
 
-function render() {
-  list.replaceChildren();
+function renderHistory() {
+  tableBody.replaceChildren();
 
   const term = search.value.toLowerCase().trim();
 
-  const filtered = logs.filter(log =>
-    (log.date || "").includes(term) ||
-    (log.activities || []).some(activity =>
-      `${activity.title} ${activity.description} ${activity.category || ""}`
-        .toLowerCase().includes(term)
-    )
-  );
+  const rows = [];
 
-  if (!filtered.length) {
-    list.textContent = "No matching activities found.";
+  logs.forEach(log => {
+    (log.activities || []).forEach((activity, index) => {
+
+      const searchable = [
+        log.date,
+        activity.title,
+        activity.description,
+        activity.category || ""
+      ].join(" ").toLowerCase();
+
+      if (!searchable.includes(term)) return;
+
+      rows.push({
+        log,
+        activity,
+        index
+      });
+    });
+  });
+
+  if (rows.length === 0) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+
+    td.colSpan = 5;
+    td.className = "empty-state";
+    td.textContent = "No matching activities found.";
+
+    tr.appendChild(td);
+    tableBody.appendChild(tr);
+
+    historyCount.textContent = "0 activities found";
     return;
   }
 
-  filtered.forEach(log => {
-    const group = document.createElement("div");
-    group.className = "task";
+  rows.forEach(({ log, activity, index }) => {
 
-    const heading = document.createElement("h3");
-    heading.textContent = log.date || "Undated log";
+    const tr = document.createElement("tr");
 
-    group.appendChild(heading);
+    // Duty Date
+    const dateCell = document.createElement("td");
+    dateCell.textContent = log.date || "-";
 
-    (log.activities || []).forEach((activity, index) => {
-      const item = document.createElement("div");
-      item.style.padding = "15px 0";
-      item.style.borderBottom = "1px solid #edf0f5";
+    // Activity Title
+    const titleCell = document.createElement("td");
+    titleCell.className = "activity-title";
+    titleCell.textContent = activity.title || "Untitled";
 
-      const title = document.createElement("strong");
-      title.textContent = activity.title || "Untitled task";
+    // Description
+    const descriptionCell = document.createElement("td");
+    descriptionCell.className = "description-cell";
+    descriptionCell.textContent =
+      activity.description || "-";
 
-      const description = document.createElement("p");
-      description.textContent = activity.description || "";
+    // Category
+    const categoryCell = document.createElement("td");
 
-      const category = document.createElement("small");
-      category.className = "task-meta";
-      category.textContent =
-        activity.category || "No category";
+    const category = document.createElement("span");
+    category.className = "category-badge";
+    category.textContent =
+      activity.category || "No category";
 
-      const actions = document.createElement("div");
-      actions.className = "task-actions";
+    categoryCell.appendChild(category);
 
-      const editButton = document.createElement("button");
-      editButton.className = "small-btn";
-      editButton.textContent = "Edit";
+    // Actions
+    const actionsCell = document.createElement("td");
+    actionsCell.className = "table-actions";
 
-      editButton.addEventListener("click", async () => {
-        const newTitle = prompt("Task title:", activity.title);
-        if (newTitle === null) return;
+    const editButton = document.createElement("button");
+    editButton.className = "small-btn";
+    editButton.textContent = "Edit";
 
-        const newDescription = prompt(
-          "Description:", activity.description
-        );
-        if (newDescription === null) return;
+    editButton.addEventListener("click", async () => {
 
-        const newCategory = prompt(
-          "Category (leave blank for none):",
-          activity.category || ""
-        );
-        if (newCategory === null) return;
+      const newTitle = prompt(
+        "Activity title:",
+        activity.title
+      );
 
-        if (!newTitle.trim() || !newDescription.trim()) {
-          alert("Title and description are required.");
-          return;
-        }
+      if (newTitle === null) return;
 
-        const updatedActivities = [...log.activities];
+      const newDescription = prompt(
+        "Description:",
+        activity.description
+      );
 
-        updatedActivities[index] = {
-          title: newTitle.trim(),
-          description: newDescription.trim(),
-          category: newCategory.trim()
-        };
+      if (newDescription === null) return;
 
-        try {
+      const newCategory = prompt(
+        "Category (leave blank for none):",
+        activity.category || ""
+      );
+
+      if (newCategory === null) return;
+
+      if (!newTitle.trim() || !newDescription.trim()) {
+        alert("Title and description are required.");
+        return;
+      }
+
+      const updatedActivities = [...log.activities];
+
+      updatedActivities[index] = {
+        title: newTitle.trim(),
+        description: newDescription.trim(),
+        category: newCategory.trim()
+      };
+
+      try {
+        await updateDoc(doc(db, "dailyLogs", log.id), {
+          activities: updatedActivities,
+          updatedAt: serverTimestamp()
+        });
+
+        log.activities = updatedActivities;
+        renderHistory();
+
+      } catch (error) {
+        console.error(error);
+        alert("Unable to update activity: " + error.message);
+      }
+    });
+
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "small-btn delete-btn";
+    deleteButton.textContent = "Delete";
+
+    deleteButton.addEventListener("click", async () => {
+
+      if (!confirm("Are you sure you want to delete this activity?")) {
+        return;
+      }
+
+      const updatedActivities = log.activities.filter(
+        (_, i) => i !== index
+      );
+
+      try {
+        if (updatedActivities.length === 0) {
+          await deleteDoc(doc(db, "dailyLogs", log.id));
+
+          logs = logs.filter(item => item.id !== log.id);
+
+        } else {
           await updateDoc(doc(db, "dailyLogs", log.id), {
             activities: updatedActivities,
             updatedAt: serverTimestamp()
           });
 
           log.activities = updatedActivities;
-          render();
-
-        } catch (error) {
-          console.error(error);
-          alert("Unable to update activity: " + error.message);
         }
-      });
 
-      const deleteButton = document.createElement("button");
-      deleteButton.className = "small-btn delete-btn";
-      deleteButton.textContent = "Delete";
+        renderHistory();
 
-      deleteButton.addEventListener("click", async () => {
-        if (!confirm("Delete this activity permanently?")) return;
-
-        const updatedActivities = log.activities.filter(
-          (_, i) => i !== index
-        );
-
-        try {
-          if (updatedActivities.length === 0) {
-            await deleteDoc(doc(db, "dailyLogs", log.id));
-            logs = logs.filter(item => item.id !== log.id);
-          } else {
-            await updateDoc(doc(db, "dailyLogs", log.id), {
-              activities: updatedActivities,
-              updatedAt: serverTimestamp()
-            });
-
-            log.activities = updatedActivities;
-          }
-
-          render();
-
-        } catch (error) {
-          console.error(error);
-          alert("Unable to delete activity: " + error.message);
-        }
-      });
-
-      actions.append(editButton, deleteButton);
-      item.append(title, description, category, actions);
-      group.appendChild(item);
+      } catch (error) {
+        console.error(error);
+        alert("Unable to delete activity: " + error.message);
+      }
     });
 
-    list.appendChild(group);
+    actionsCell.append(editButton, deleteButton);
+
+    tr.append(
+      dateCell,
+      titleCell,
+      descriptionCell,
+      categoryCell,
+      actionsCell
+    );
+
+    tableBody.appendChild(tr);
   });
+
+  historyCount.textContent =
+    `${rows.length} activities found`;
 }
 
-search.addEventListener("input", render);
+search.addEventListener("input", renderHistory);
 
 requireAuth(async user => {
-  list.textContent = "Loading task history...";
+
+  tableBody.innerHTML = `
+    <tr>
+      <td colspan="5" class="empty-state">
+        Loading task history...
+      </td>
+    </tr>
+  `;
 
   try {
     const q = query(
@@ -172,13 +230,21 @@ requireAuth(async user => {
       ...document.data()
     }));
 
-    logs.sort((a, b) => b.date.localeCompare(a.date));
+    logs.sort((a, b) =>
+      (b.date || "").localeCompare(a.date || "")
+    );
 
-    render();
+    renderHistory();
 
   } catch (error) {
     console.error("History loading error:", error);
-    list.textContent =
-      `Unable to load task history: ${error.code || error.message}`;
+
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="5" class="empty-state">
+          Unable to load task history.
+        </td>
+      </tr>
+    `;
   }
 });
