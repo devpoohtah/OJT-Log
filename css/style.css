@@ -1,27 +1,81 @@
 
+/* =====================================
+   INTERNLOG - GLOBAL STYLES
+===================================== */
+
+:root {
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --dark: #172338;
+  --text: #202b3c;
+  --muted: #8993a4;
+  --border: #e5eaf1;
+  --background: #f5f7fb;
+  --white: #ffffff;
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --blue-bg: #eff6ff;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
-  background: #f5f7fb;
-  color: #202b3c;
+  font-family: Arial, Helvetica, sans-serif;
+  background: var(--background);
+  color: var(--text);
+  line-height: 1.5;
 }
 
-h1, h2, p {
+h1, h2, h3, p {
   margin-top: 0;
 }
 
 h1 {
   font-size: 27px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+h2 {
+  font-size: 19px;
+  margin-bottom: 12px;
+}
+
+h3 {
+  font-size: 16px;
+}
+
+a {
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .muted {
-  color: #8993a4;
+  color: var(--muted);
   font-size: 14px;
 }
+
+/* =====================================
+   LOGIN PAGE
+===================================== */
 
 .login-page {
   min-height: 100vh;
@@ -31,12 +85,12 @@ h1 {
 }
 
 .login-card {
-  background: white;
+  background: var(--white);
   width: 100%;
   max-width: 410px;
   padding: 38px;
   border-radius: 15px;
-  box-shadow: 0 8px 35px #1d2d4610;
+  box-shadow: 0 8px 35px rgba(29, 45, 70, 0.08);
 }
 
 .login-card h1,
@@ -45,8 +99,8 @@ h1 {
 }
 
 .brand-icon {
-  margin: auto;
-  background: #2563eb;
+  margin: 0 auto 20px;
+  background: var(--primary);
   color: white;
   width: 55px;
   height: 55px;
@@ -57,6 +111,10 @@ h1 {
   font-weight: bold;
 }
 
+/* =====================================
+   INPUTS AND FORMS
+===================================== */
+
 label {
   display: block;
   font-size: 13px;
@@ -64,30 +122,75 @@ label {
   margin: 18px 0 8px;
 }
 
-input, textarea, select {
+input,
+textarea,
+select {
+  display: block;
   width: 100%;
-  padding: 12px;
+  padding: 12px 14px;
   border: 1px solid #dce2eb;
-  border-radius: 7px;
+  border-radius: 8px;
   background: white;
-  font: inherit;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #a0a9b7;
+}
+
+.message {
+  font-size: 13px;
+  color: var(--danger);
+  margin-top: 14px;
+}
+
+/* =====================================
+   BUTTONS
+===================================== */
+
 .btn {
-  border: 0;
-  border-radius: 7px;
-  padding: 12px 17px;
-  text-decoration: none;
-  display: inline-block;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 18px;
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   text-align: center;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.btn:active,
+.add-task-btn:active,
+.small-btn:active {
+  transform: scale(0.98);
 }
 
 .primary {
-  background: #2563eb;
+  background: var(--primary);
   color: white;
+}
+
+.primary:hover {
+  background: var(--primary-hover);
 }
 
 .secondary {
@@ -95,16 +198,18 @@ input, textarea, select {
   color: #374151;
 }
 
+.secondary:hover {
+  background: #e0e6ef;
+}
+
 .full {
   width: 100%;
   margin-top: 24px;
 }
 
-.message {
-  font-size: 13px;
-  color: #dc2626;
-  margin-top: 14px;
-}
+/* =====================================
+   MAIN LAYOUT
+===================================== */
 
 .layout {
   min-height: 100vh;
@@ -112,18 +217,20 @@ input, textarea, select {
 
 .sidebar {
   width: 235px;
-  background: #172338;
+  background: var(--dark);
   color: white;
   position: fixed;
   inset: 0 auto 0 0;
   padding: 27px 17px;
   display: flex;
   flex-direction: column;
+  z-index: 10;
 }
 
 .sidebar h2 {
   padding: 0 12px;
   margin-bottom: 40px;
+  font-size: 20px;
 }
 
 .sidebar h2 span {
@@ -137,10 +244,10 @@ input, textarea, select {
 
 .sidebar nav a {
   color: #b9c4d5;
-  text-decoration: none;
   padding: 13px;
   border-radius: 7px;
   font-size: 14px;
+  transition: 0.2s;
 }
 
 .sidebar nav a.active,
@@ -151,18 +258,25 @@ input, textarea, select {
 
 .logout {
   margin-top: auto;
-  background: none;
-  border: 0;
+  background: transparent;
+  border: 1px solid transparent;
   color: #b9c4d5;
   text-align: left;
-  padding: 14px;
-  cursor: pointer;
+  padding: 13px;
+  border-radius: 7px;
+  font-size: 14px;
+  transition: 0.2s;
+}
+
+.logout:hover {
+  background: #293a56;
+  color: white;
 }
 
 .main {
   margin-left: 235px;
   padding: 40px;
-  max-width: 1250px;
+  max-width: 1450px;
 }
 
 header {
@@ -173,6 +287,23 @@ header {
   gap: 15px;
 }
 
+/* =====================================
+   PANELS AND STATISTICS
+===================================== */
+
+.panel,
+.stat {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(29, 45, 70, 0.025);
+}
+
+.form-panel {
+  max-width: 780px;
+}
+
 .stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 220px));
@@ -180,53 +311,124 @@ header {
   margin-bottom: 25px;
 }
 
-.stat, .panel {
-  background: white;
-  border: 1px solid #e9edf3;
-  border-radius: 11px;
-  padding: 23px;
-}
-
 .stat span {
   display: block;
-  color: #8792a3;
+  color: var(--muted);
   font-size: 13px;
   margin-bottom: 12px;
 }
 
 .stat strong {
-  font-size: 29px;
+  font-size: 30px;
+  font-weight: 700;
 }
 
-.form-panel {
-  max-width: 720px;
+/* =====================================
+   DAILY TASK ENTRIES
+===================================== */
+
+.task-entry {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 22px;
+  margin-top: 18px;
+  background: #fafbfd;
 }
 
-textarea {
-  resize: vertical;
+.task-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
 }
+
+.task-number {
+  font-size: 15px;
+  color: var(--text);
+}
+
+/* Add another task button */
+
+.add-task-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px dashed #93b4f8;
+  background: var(--blue-bg);
+  color: var(--primary);
+  border-radius: 9px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.add-task-btn:hover {
+  background: #dbeafe;
+  border-color: var(--primary);
+}
+
+/* Remove task button */
+
+.remove-task {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #fecaca;
+  background: var(--danger-bg);
+  color: var(--danger);
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.remove-task:hover {
+  background: #fee2e2;
+}
+
+/* Form actions */
 
 .actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 10px;
   margin-top: 25px;
 }
 
+.actions .btn {
+  min-width: 110px;
+}
+
+/* =====================================
+   TASK HISTORY AND DAILY LOGS
+===================================== */
+
 .task {
   border-bottom: 1px solid #edf0f5;
-  padding: 17px 0;
+  padding: 18px 0;
+}
+
+.task:last-child {
+  border-bottom: none;
 }
 
 .task h3 {
-  font-size: 15px;
-  margin: 0 0 7px;
+  font-size: 16px;
+  margin-bottom: 8px;
 }
 
 .task p {
   font-size: 13px;
   color: #788497;
-  line-height: 1.6;
+  line-height: 1.7;
+  margin-bottom: 8px;
 }
 
 .task-meta {
@@ -237,34 +439,83 @@ textarea {
 .task-actions {
   display: flex;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
+/* Edit and delete buttons */
+
 .small-btn {
-  border: 0;
-  border-radius: 5px;
-  padding: 7px 11px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid #dce2eb;
+  background: #f8fafc;
+  color: #374151;
+  border-radius: 6px;
+  padding: 8px 13px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
+  transition: 0.2s;
+}
+
+.small-btn:hover {
+  background: #edf1f7;
 }
 
 .delete-btn {
-  background: #fff0f0;
-  color: #c33;
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: #fecaca;
+}
+
+.delete-btn:hover {
+  background: #fee2e2;
 }
 
 .text-link {
   display: inline-block;
-  color: #2563eb;
-  text-decoration: none;
+  color: var(--primary);
   font-size: 13px;
+  font-weight: 600;
   margin-top: 15px;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+/* =====================================
+   SEARCH
+===================================== */
+
+#search {
+  margin-bottom: 20px;
+}
+
+/* =====================================
+   RESPONSIVE DESIGN
+===================================== */
+
+@media (max-width: 850px) {
+  .main {
+    padding: 28px 22px;
+  }
+
+  .sidebar {
+    width: 205px;
+  }
+
+  .main {
+    margin-left: 205px;
+  }
 }
 
 @media (max-width: 700px) {
   .sidebar {
-    position: static;
-    width: auto;
-    padding: 15px;
+    position: relative;
+    width: 100%;
+    padding: 17px;
   }
 
   .sidebar h2 {
@@ -274,10 +525,16 @@ textarea {
   .sidebar nav {
     display: flex;
     flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .sidebar nav a {
+    padding: 10px;
+    font-size: 12px;
   }
 
   .logout {
-    margin-top: 10px;
+    margin-top: 12px;
   }
 
   .main {
@@ -288,5 +545,45 @@ textarea {
   header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  header .btn {
+    width: 100%;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .stat,
+  .panel {
+    padding: 17px;
+  }
+
+  .task-entry {
+    padding: 15px;
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .actions .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar nav a {
+    font-size: 11px;
+  }
+
+  .login-card {
+    padding: 25px 20px;
   }
 }
