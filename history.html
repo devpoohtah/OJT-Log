@@ -10,6 +10,7 @@
 <body>
 
 <div class="layout">
+
   <aside class="sidebar">
     <h2>IL <span>InternLog</span></h2>
     <nav>
@@ -21,18 +22,25 @@
   </aside>
 
   <main class="main">
+
     <header>
       <div>
         <h1>Task History</h1>
         <p class="muted">All your recorded internship activities.</p>
       </div>
-      <a href="add-task.html" class="btn primary">+ Add Task</a>
+      <a href="add-task.html" class="btn primary">+ Add Daily Log</a>
     </header>
 
     <section class="panel">
-      <input id="search" type="search" placeholder="Search activities...">
+      <input
+        type="search"
+        id="search"
+        placeholder="Search activities or dates..."
+      >
+
       <div id="historyList">Loading activities...</div>
     </section>
+
   </main>
 </div>
 
