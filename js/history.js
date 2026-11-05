@@ -18,17 +18,20 @@ setupLogout();
 const list = document.getElementById("historyList");
 const search = document.getElementById("search");
 
-let tasks = [];
+let logs = [];
+let currentUser = null;
 
 function render() {
   list.replaceChildren();
 
-  const term = search.value.toLowerCase();
+  const term = search.value.toLowerCase().trim();
 
-  const filtered = tasks.filter(task =>
-    `${task.title} ${task.description} ${task.category}`
-      .toLowerCase()
-      .includes(term)
+  const filtered = logs.filter(log =>
+    log.date.includes(term) ||
+    (log.activities || []).some(activity =>
+      `${activity.title} ${activity.description} ${activity.category}`
+        .toLowerCase().includes(term)
+    )
   );
 
   if (!filtered.length) {
@@ -36,108 +39,147 @@ function render() {
     return;
   }
 
-  filtered.forEach(task => {
-    const item = document.createElement("div");
-    item.className = "task";
+  filtered.forEach(log => {
 
-    const title = document.createElement("h3");
-    title.textContent = task.title;
+    const group = document.createElement("div");
+    group.className = "task";
 
-    const desc = document.createElement("p");
-    desc.textContent = task.description;
+    const heading = document.createElement("h3");
+    heading.textContent = log.date;
 
-    const meta = document.createElement("div");
-    meta.className = "task-meta";
-    meta.textContent =
-      `${task.date} · ${task.category} · ${task.hours} hours`;
+    group.appendChild(heading);
 
-    const actions = document.createElement("div");
-    actions.className = "task-actions";
+    (log.activities || []).forEach((activity, index) => {
 
-    const edit = document.createElement("button");
-    edit.className = "small-btn";
-    edit.textContent = "Edit";
+      const item = document.createElement("div");
+      item.style.padding = "15px 0";
+      item.style.borderBottom = "1px solid #edf0f5";
 
-    edit.addEventListener("click", async () => {
-      const newTitle = prompt("Task title:", task.title);
-      if (newTitle === null) return;
+      const title = document.createElement("strong");
+      title.textContent = activity.title;
 
-      const newDescription = prompt("Description:", task.description);
-      if (newDescription === null) return;
+      const description = document.createElement("p");
+      description.textContent = activity.description;
 
-      const newHours = prompt("Hours:", task.hours);
-      if (newHours === null) return;
+      const category = document.createElement("small");
+      category.className = "task-meta";
+      category.textContent =
+        activity.category || "No category";
 
-      const hours = Number(newHours);
+      const actions = document.createElement("div");
+      actions.className = "task-actions";
 
-      if (!newTitle.trim() || !newDescription.trim() ||
-          !Number.isFinite(hours) || hours <= 0 || hours > 24) {
-        alert("Please enter valid task details.");
-        return;
-      }
+      const editButton = document.createElement("button");
+      editButton.className = "small-btn";
+      editButton.textContent = "Edit";
 
-      try {
-        await updateDoc(doc(db, "tasks", task.id), {
+      editButton.addEventListener("click", async () => {
+
+        const newTitle = prompt("Task title:", activity.title);
+        if (newTitle === null) return;
+
+        const newDescription = prompt(
+          "Description:", activity.description
+        );
+        if (newDescription === null) return;
+
+        const newCategory = prompt(
+          "Category (leave blank for none):",
+          activity.category || ""
+        );
+        if (newCategory === null) return;
+
+        if (!newTitle.trim() || !newDescription.trim()) {
+          alert("Title and description are required.");
+          return;
+        }
+
+        const updatedActivities = [...log.activities];
+
+        updatedActivities[index] = {
           title: newTitle.trim(),
           description: newDescription.trim(),
-          hours
-        });
+          category: newCategory.trim()
+        };
 
-        task.title = newTitle.trim();
-        task.description = newDescription.trim();
-        task.hours = hours;
+        try {
+          await updateDoc(doc(db, "dailyLogs", log.id), {
+            activities: updatedActivities
+          });
 
-        render();
+          log.activities = updatedActivities;
+          render();
 
-      } catch (error) {
-        alert("Unable to update task.");
-      }
+        } catch (error) {
+          console.error(error);
+          alert("Unable to update activity.");
+        }
+      });
+
+      const deleteButton = document.createElement("button");
+      deleteButton.className = "small-btn delete-btn";
+      deleteButton.textContent = "Delete";
+
+      deleteButton.addEventListener("click", async () => {
+
+        if (!confirm("Delete this activity permanently?")) return;
+
+        const updatedActivities = log.activities.filter(
+          (_, i) => i !== index
+        );
+
+        try {
+          if (updatedActivities.length === 0) {
+            await deleteDoc(doc(db, "dailyLogs", log.id));
+            logs = logs.filter(item => item.id !== log.id);
+          } else {
+            await updateDoc(doc(db, "dailyLogs", log.id), {
+              activities: updatedActivities
+            });
+
+            log.activities = updatedActivities;
+          }
+
+          render();
+
+        } catch (error) {
+          console.error(error);
+          alert("Unable to delete activity.");
+        }
+      });
+
+      actions.append(editButton, deleteButton);
+      item.append(title, description, category, actions);
+      group.appendChild(item);
     });
 
-    const del = document.createElement("button");
-    del.className = "small-btn delete-btn";
-    del.textContent = "Delete";
-
-    del.addEventListener("click", async () => {
-      if (!confirm("Delete this task permanently?")) return;
-
-      try {
-        await deleteDoc(doc(db, "tasks", task.id));
-
-        tasks = tasks.filter(t => t.id !== task.id);
-        render();
-
-      } catch (error) {
-        alert("Unable to delete task.");
-      }
-    });
-
-    actions.append(edit, del);
-    item.append(title, desc, meta, actions);
-    list.append(item);
+    list.appendChild(group);
   });
 }
 
 search.addEventListener("input", render);
 
 requireAuth(async user => {
+  currentUser = user;
+
   try {
     const q = query(
-      collection(db, "tasks"),
-      where("userId", "==", user.uid),
+      collection(db, "dailyLogs"),
+      where("userId", "==", currentUser.uid),
       orderBy("date", "desc")
     );
 
     const snapshot = await getDocs(q);
 
-    tasks = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+    logs = snapshot.docs.map(document => ({
+      id: document.id,
+      ...document.data()
     }));
 
     render();
 
   } catch (error) {
+    console.error(error);
     list.textContent = "Unable to load task history.";
   }
 });
