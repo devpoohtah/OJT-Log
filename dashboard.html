@@ -1,0 +1,56 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Tasks | InternLog</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="layout">
+  <aside class="sidebar">
+    <h2>IL <span>InternLog</span></h2>
+
+    <nav>
+      <a class="active" href="dashboard.html">My Tasks</a>
+      <a href="add-task.html">Add New Task</a>
+      <a href="history.html">Task History</a>
+    </nav>
+
+    <button id="logout" class="logout">Sign Out</button>
+  </aside>
+
+  <main class="main">
+    <header>
+      <div>
+        <h1>My Tasks</h1>
+        <p class="muted">Welcome back! Here's your internship activity.</p>
+      </div>
+      <a href="add-task.html" class="btn primary">+ Add Task</a>
+    </header>
+
+    <section class="stats">
+      <div class="stat">
+        <span>Total Activities</span>
+        <strong id="totalTasks">0</strong>
+      </div>
+
+      <div class="stat">
+        <span>Total Hours</span>
+        <strong id="totalHours">0</strong>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Recent Activities</h2>
+      <div id="taskList">Loading activities...</div>
+      <a href="history.html" class="text-link">View all activities →</a>
+    </section>
+  </main>
+</div>
+
+<script type="module" src="js/dashboard.js"></script>
+</body>
+</html>
