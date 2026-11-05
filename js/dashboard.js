@@ -6,8 +6,7 @@ import {
   collection,
   query,
   where,
-  getDocs,
-  orderBy
+  getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 setupLogout();
@@ -15,11 +14,12 @@ setupLogout();
 requireAuth(async user => {
   const list = document.getElementById("taskList");
 
+  list.textContent = "Loading activities...";
+
   try {
     const q = query(
       collection(db, "dailyLogs"),
-      where("userId", "==", user.uid),
-      orderBy("date", "desc")
+      where("userId", "==", user.uid)
     );
 
     const snapshot = await getDocs(q);
@@ -29,10 +29,14 @@ requireAuth(async user => {
       ...document.data()
     }));
 
+    // Sort dates locally instead of using Firestore orderBy.
+    logs.sort((a, b) => b.date.localeCompare(a.date));
+
     document.getElementById("totalLogs").textContent = logs.length;
 
     const totalActivities = logs.reduce(
-      (sum, log) => sum + (log.activities?.length || 0),
+      (sum, log) => sum + (Array.isArray(log.activities)
+        ? log.activities.length : 0),
       0
     );
 
@@ -42,17 +46,16 @@ requireAuth(async user => {
     list.replaceChildren();
 
     if (!logs.length) {
-      list.textContent = "No activities recorded yet. Add your first daily log!";
+      list.textContent = "No activities recorded yet.";
       return;
     }
 
     logs.slice(0, 5).forEach(log => {
-
       const group = document.createElement("div");
       group.className = "task";
 
       const heading = document.createElement("h3");
-      heading.textContent = log.date;
+      heading.textContent = log.date || "Undated log";
 
       const count = document.createElement("p");
       count.textContent =
@@ -61,15 +64,14 @@ requireAuth(async user => {
       group.append(heading, count);
 
       (log.activities || []).forEach(activity => {
-
         const item = document.createElement("div");
         item.style.padding = "10px 0";
 
         const title = document.createElement("strong");
-        title.textContent = activity.title;
+        title.textContent = activity.title || "Untitled task";
 
         const desc = document.createElement("p");
-        desc.textContent = activity.description;
+        desc.textContent = activity.description || "";
 
         const category = document.createElement("small");
         category.className = "task-meta";
@@ -84,7 +86,8 @@ requireAuth(async user => {
     });
 
   } catch (error) {
-    console.error(error);
-    list.textContent = "Unable to load daily logs.";
+    console.error("Dashboard loading error:", error);
+    list.textContent =
+      `Unable to load activities: ${error.code || error.message}`;
   }
 });
