@@ -587,3 +587,107 @@ header {
     padding: 25px 20px;
   }
 }
+
+
+
+/* =====================================
+   TASK HISTORY TABLE
+===================================== */
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 20px;
+  border: 1px solid #e5eaf1;
+  border-radius: 10px;
+}
+
+.history-table {
+  width: 100%;
+  min-width: 850px;
+  border-collapse: collapse;
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.history-table thead {
+  background: #f5f7fb;
+}
+
+.history-table th {
+  color: #526078;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  padding: 16px;
+  border-bottom: 1px solid #e5eaf1;
+  white-space: nowrap;
+}
+
+.history-table td {
+  padding: 16px;
+  border-bottom: 1px solid #edf0f5;
+  vertical-align: top;
+  line-height: 1.6;
+}
+
+.history-table tbody tr:hover {
+  background: #f9fbff;
+}
+
+.history-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.activity-title {
+  font-weight: 600;
+  color: #202b3c;
+  min-width: 150px;
+}
+
+.description-cell {
+  color: #64748b;
+  min-width: 220px;
+  max-width: 350px;
+  overflow-wrap: anywhere;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.table-actions {
+  white-space: nowrap;
+}
+
+.table-actions .small-btn {
+  margin: 2px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 35px !important;
+  color: #8993a4;
+}
+
+#historyCount {
+  margin-top: 15px;
+  font-size: 12px;
+}
+
+@media (max-width: 700px) {
+  .table-container {
+    margin-top: 15px;
+  }
+
+  .history-table {
+    min-width: 800px;
+  }
+}
