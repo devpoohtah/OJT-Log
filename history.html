@@ -45,7 +45,6 @@
       >
 
       <div class="table-container">
-
         <table class="history-table">
 
           <thead>
@@ -67,15 +66,89 @@
           </tbody>
 
         </table>
-
       </div>
 
-      <p id="historyCount" class="muted"></p>
+      <div class="history-footer">
+        <p id="historyCount" class="muted">Loading...</p>
+
+        <div class="pagination">
+          <button id="prevPage" class="page-btn" disabled>
+            Previous
+          </button>
+
+          <span id="pageInfo">Page 1 of 1</span>
+
+          <button id="nextPage" class="page-btn" disabled>
+            Next
+          </button>
+        </div>
+      </div>
 
     </section>
 
   </main>
+</div>
 
+<!-- EDIT ACTIVITY MODAL -->
+
+<div id="editModal" class="modal-overlay" hidden>
+
+  <div class="edit-modal">
+
+    <div class="modal-heading">
+      <div>
+        <h2>Edit Activity</h2>
+        <p class="muted">Update your internship activity.</p>
+      </div>
+
+      <button type="button" id="closeModal" class="modal-close">
+        &times;
+      </button>
+    </div>
+
+    <form id="editForm">
+
+      <label for="editDate">Duty Date</label>
+      <input type="date" id="editDate" required>
+
+      <label for="editTitle">Task Title</label>
+      <input
+        type="text"
+        id="editTitle"
+        placeholder="Enter activity title"
+        required
+      >
+
+      <label for="editDescription">Description</label>
+      <textarea
+        id="editDescription"
+        rows="4"
+        placeholder="Describe your activity..."
+        required
+      ></textarea>
+
+      <label for="editCategory">Category</label>
+      <input
+        type="text"
+        id="editCategory"
+        placeholder="Enter category"
+      >
+
+      <p id="editMessage" class="form-message"></p>
+
+      <div class="modal-actions">
+        <button type="button" id="cancelEdit" class="btn secondary">
+          Cancel
+        </button>
+
+        <button type="submit" id="saveEdit" class="btn primary">
+          Save Changes
+        </button>
+      </div>
+
+    </form>
+
+  </div>
 </div>
 
 <script type="module" src="js/history.js"></script>
