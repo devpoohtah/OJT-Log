@@ -1,0 +1,41 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task History | InternLog</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="layout">
+  <aside class="sidebar">
+    <h2>IL <span>InternLog</span></h2>
+    <nav>
+      <a href="dashboard.html">My Tasks</a>
+      <a href="add-task.html">Add New Task</a>
+      <a class="active" href="history.html">Task History</a>
+    </nav>
+    <button id="logout" class="logout">Sign Out</button>
+  </aside>
+
+  <main class="main">
+    <header>
+      <div>
+        <h1>Task History</h1>
+        <p class="muted">All your recorded internship activities.</p>
+      </div>
+      <a href="add-task.html" class="btn primary">+ Add Task</a>
+    </header>
+
+    <section class="panel">
+      <input id="search" type="search" placeholder="Search activities...">
+      <div id="historyList">Loading activities...</div>
+    </section>
+  </main>
+</div>
+
+<script type="module" src="js/history.js"></script>
+</body>
+</html>
