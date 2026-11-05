@@ -17,50 +17,74 @@ requireAuth(async user => {
 
   try {
     const q = query(
-      collection(db, "tasks"),
+      collection(db, "dailyLogs"),
       where("userId", "==", user.uid),
       orderBy("date", "desc")
     );
 
     const snapshot = await getDocs(q);
 
-    const tasks = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+    const logs = snapshot.docs.map(document => ({
+      id: document.id,
+      ...document.data()
     }));
 
-    document.getElementById("totalTasks").textContent = tasks.length;
+    document.getElementById("totalLogs").textContent = logs.length;
 
-    document.getElementById("totalHours").textContent =
-      tasks.reduce((sum, task) => sum + Number(task.hours || 0), 0);
+    const totalActivities = logs.reduce(
+      (sum, log) => sum + (log.activities?.length || 0),
+      0
+    );
+
+    document.getElementById("totalActivities").textContent =
+      totalActivities;
 
     list.replaceChildren();
 
-    if (!tasks.length) {
-      list.textContent = "No activities yet. Add your first task!";
+    if (!logs.length) {
+      list.textContent = "No activities recorded yet. Add your first daily log!";
       return;
     }
 
-    tasks.slice(0, 5).forEach(task => {
-      const item = document.createElement("div");
-      item.className = "task";
+    logs.slice(0, 5).forEach(log => {
 
-      const title = document.createElement("h3");
-      title.textContent = task.title;
+      const group = document.createElement("div");
+      group.className = "task";
 
-      const desc = document.createElement("p");
-      desc.textContent = task.description;
+      const heading = document.createElement("h3");
+      heading.textContent = log.date;
 
-      const meta = document.createElement("div");
-      meta.className = "task-meta";
-      meta.textContent =
-        `${task.date} · ${task.category} · ${task.hours} hours`;
+      const count = document.createElement("p");
+      count.textContent =
+        `${log.activities?.length || 0} activities recorded`;
 
-      item.append(title, desc, meta);
-      list.append(item);
+      group.append(heading, count);
+
+      (log.activities || []).forEach(activity => {
+
+        const item = document.createElement("div");
+        item.style.padding = "10px 0";
+
+        const title = document.createElement("strong");
+        title.textContent = activity.title;
+
+        const desc = document.createElement("p");
+        desc.textContent = activity.description;
+
+        const category = document.createElement("small");
+        category.className = "task-meta";
+        category.textContent =
+          activity.category || "No category";
+
+        item.append(title, desc, category);
+        group.appendChild(item);
+      });
+
+      list.appendChild(group);
     });
 
   } catch (error) {
-    list.textContent = "Unable to load activities.";
+    console.error(error);
+    list.textContent = "Unable to load daily logs.";
   }
 });
