@@ -1,0 +1,31 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InternLog | Login</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="login-page">
+
+  <div class="login-card">
+    <div class="brand-icon">IL</div>
+    <h1>InternLog</h1>
+    <p class="muted">Your internship activity tracker.</p>
+
+    <form id="loginForm">
+      <label>Email Address</label>
+      <input id="email" type="email" placeholder="Enter your email" required>
+
+      <label>Password</label>
+      <input id="password" type="password" placeholder="Enter your password" required>
+
+      <button type="submit" class="btn primary full">Sign In</button>
+      <p id="loginMessage" class="message"></p>
+    </form>
+  </div>
+
+  <script type="module" src="js/login.js"></script>
+</body>
+</html>
