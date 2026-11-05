@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard | InternLog</title>
+  <title>Internship Overview | InternLog</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -13,11 +13,13 @@
 
   <aside class="sidebar">
     <h2>IL <span>InternLog</span></h2>
+
     <nav>
       <a class="active" href="dashboard.html">My Tasks</a>
       <a href="add-task.html">Add New Task</a>
       <a href="history.html">Task History</a>
     </nav>
+
     <button id="logout" class="logout">Sign Out</button>
   </aside>
 
@@ -25,35 +27,125 @@
 
     <header>
       <div>
-        <h1>My Internship Activities</h1>
-        <p class="muted">Keep track of what you accomplish every day.</p>
+        <h1>Internship Overview</h1>
+        <p class="muted">
+          Keep track of your internship progress and daily accomplishments.
+        </p>
       </div>
-      <a href="add-task.html" class="btn primary">+ Add Daily Log</a>
+
+      <a href="add-task.html" class="btn primary">
+        + Add Daily Log
+      </a>
     </header>
 
-    <section class="stats">
+    <!-- SUMMARY CARDS -->
+
+    <section class="stats dashboard-stats">
 
       <div class="stat">
-        <span>Total Daily Logs</span>
+        <span>Days with Logs</span>
         <strong id="totalLogs">0</strong>
+        <small>Recorded duty dates</small>
       </div>
 
       <div class="stat">
-        <span>Total Activities</span>
+        <span>Activities Recorded</span>
         <strong id="totalActivities">0</strong>
+        <small>Total accomplishments</small>
       </div>
 
     </section>
 
-    <section class="panel">
-      <h2>Recent Activities</h2>
-      <div id="taskList">Loading activities...</div>
-      <a href="history.html" class="text-link">View all daily logs →</a>
+    <!-- CALENDAR -->
+
+    <section class="panel calendar-panel">
+
+      <div class="calendar-heading">
+        <div>
+          <h2>Activity Calendar</h2>
+          <p class="muted">
+            Select a highlighted date to view your activities.
+          </p>
+        </div>
+
+        <div class="calendar-navigation">
+          <button type="button" id="prevMonth"
+            class="calendar-nav-btn" aria-label="Previous month">
+            &#10094;
+          </button>
+
+          <strong id="calendarMonth">Month Year</strong>
+
+          <button type="button" id="nextMonth"
+            class="calendar-nav-btn" aria-label="Next month">
+            &#10095;
+          </button>
+        </div>
+      </div>
+
+      <div class="calendar-weekdays">
+        <div>Sun</div>
+        <div>Mon</div>
+        <div>Tue</div>
+        <div>Wed</div>
+        <div>Thu</div>
+        <div>Fri</div>
+        <div>Sat</div>
+      </div>
+
+      <div id="calendarDays" class="calendar-days">
+        <p>Loading calendar...</p>
+      </div>
+
+      <div class="calendar-legend">
+        <span class="legend-dot"></span>
+        <span>Activities recorded</span>
+      </div>
+
+    </section>
+
+    <!-- SELECTED DATE ACTIVITIES -->
+
+    <section class="panel selected-day-panel">
+
+      <div class="selected-day-heading">
+        <div>
+          <h2 id="selectedDateTitle">Select a date</h2>
+          <p class="muted" id="selectedDateSubtitle">
+            Your daily activities will appear here.
+          </p>
+        </div>
+
+        <a href="history.html" class="text-link">
+          View Task History →
+        </a>
+      </div>
+
+      <div id="selectedActivities">
+        <p class="muted">Select a date on the calendar.</p>
+      </div>
+
+    </section>
+
+    <!-- CATEGORY BREAKDOWN -->
+
+    <section class="panel category-panel">
+
+      <h2>Activity Breakdown</h2>
+      <p class="muted">
+        See the categories of your recorded internship activities.
+      </p>
+
+      <div id="categoryBreakdown">
+        <p class="muted">Loading categories...</p>
+      </div>
+
     </section>
 
   </main>
 </div>
 
 <script type="module" src="js/dashboard.js"></script>
+
 </body>
 </html>
