@@ -7,10 +7,10 @@ import {
   query,
   where,
   getDocs,
-  orderBy,
   doc,
   updateDoc,
-  deleteDoc
+  deleteDoc,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 setupLogout();
@@ -19,7 +19,6 @@ const list = document.getElementById("historyList");
 const search = document.getElementById("search");
 
 let logs = [];
-let currentUser = null;
 
 function render() {
   list.replaceChildren();
@@ -27,9 +26,9 @@ function render() {
   const term = search.value.toLowerCase().trim();
 
   const filtered = logs.filter(log =>
-    log.date.includes(term) ||
+    (log.date || "").includes(term) ||
     (log.activities || []).some(activity =>
-      `${activity.title} ${activity.description} ${activity.category}`
+      `${activity.title} ${activity.description} ${activity.category || ""}`
         .toLowerCase().includes(term)
     )
   );
@@ -40,26 +39,24 @@ function render() {
   }
 
   filtered.forEach(log => {
-
     const group = document.createElement("div");
     group.className = "task";
 
     const heading = document.createElement("h3");
-    heading.textContent = log.date;
+    heading.textContent = log.date || "Undated log";
 
     group.appendChild(heading);
 
     (log.activities || []).forEach((activity, index) => {
-
       const item = document.createElement("div");
       item.style.padding = "15px 0";
       item.style.borderBottom = "1px solid #edf0f5";
 
       const title = document.createElement("strong");
-      title.textContent = activity.title;
+      title.textContent = activity.title || "Untitled task";
 
       const description = document.createElement("p");
-      description.textContent = activity.description;
+      description.textContent = activity.description || "";
 
       const category = document.createElement("small");
       category.className = "task-meta";
@@ -74,7 +71,6 @@ function render() {
       editButton.textContent = "Edit";
 
       editButton.addEventListener("click", async () => {
-
         const newTitle = prompt("Task title:", activity.title);
         if (newTitle === null) return;
 
@@ -104,7 +100,8 @@ function render() {
 
         try {
           await updateDoc(doc(db, "dailyLogs", log.id), {
-            activities: updatedActivities
+            activities: updatedActivities,
+            updatedAt: serverTimestamp()
           });
 
           log.activities = updatedActivities;
@@ -112,7 +109,7 @@ function render() {
 
         } catch (error) {
           console.error(error);
-          alert("Unable to update activity.");
+          alert("Unable to update activity: " + error.message);
         }
       });
 
@@ -121,7 +118,6 @@ function render() {
       deleteButton.textContent = "Delete";
 
       deleteButton.addEventListener("click", async () => {
-
         if (!confirm("Delete this activity permanently?")) return;
 
         const updatedActivities = log.activities.filter(
@@ -134,7 +130,8 @@ function render() {
             logs = logs.filter(item => item.id !== log.id);
           } else {
             await updateDoc(doc(db, "dailyLogs", log.id), {
-              activities: updatedActivities
+              activities: updatedActivities,
+              updatedAt: serverTimestamp()
             });
 
             log.activities = updatedActivities;
@@ -144,7 +141,7 @@ function render() {
 
         } catch (error) {
           console.error(error);
-          alert("Unable to delete activity.");
+          alert("Unable to delete activity: " + error.message);
         }
       });
 
@@ -160,13 +157,12 @@ function render() {
 search.addEventListener("input", render);
 
 requireAuth(async user => {
-  currentUser = user;
+  list.textContent = "Loading task history...";
 
   try {
     const q = query(
       collection(db, "dailyLogs"),
-      where("userId", "==", currentUser.uid),
-      orderBy("date", "desc")
+      where("userId", "==", user.uid)
     );
 
     const snapshot = await getDocs(q);
@@ -176,10 +172,13 @@ requireAuth(async user => {
       ...document.data()
     }));
 
+    logs.sort((a, b) => b.date.localeCompare(a.date));
+
     render();
 
   } catch (error) {
-    console.error(error);
-    list.textContent = "Unable to load task history.";
+    console.error("History loading error:", error);
+    list.textContent =
+      `Unable to load task history: ${error.code || error.message}`;
   }
 });
