@@ -13,11 +13,13 @@
 
   <aside class="sidebar">
     <h2>IL <span>InternLog</span></h2>
+
     <nav>
       <a href="dashboard.html">My Tasks</a>
       <a href="add-task.html">Add New Task</a>
       <a class="active" href="history.html">Task History</a>
     </nav>
+
     <button id="logout" class="logout">Sign Out</button>
   </aside>
 
@@ -28,22 +30,55 @@
         <h1>Task History</h1>
         <p class="muted">All your recorded internship activities.</p>
       </div>
-      <a href="add-task.html" class="btn primary">+ Add Daily Log</a>
+
+      <a href="add-task.html" class="btn primary">
+        + Add Daily Log
+      </a>
     </header>
 
     <section class="panel">
+
       <input
         type="search"
         id="search"
-        placeholder="Search activities or dates..."
+        placeholder="Search activities, descriptions, categories or dates..."
       >
 
-      <div id="historyList">Loading activities...</div>
+      <div class="table-container">
+
+        <table class="history-table">
+
+          <thead>
+            <tr>
+              <th>Duty Date</th>
+              <th>Activities Completed</th>
+              <th>Description</th>
+              <th>Category</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+
+          <tbody id="historyTableBody">
+            <tr>
+              <td colspan="5" class="empty-state">
+                Loading task history...
+              </td>
+            </tr>
+          </tbody>
+
+        </table>
+
+      </div>
+
+      <p id="historyCount" class="muted"></p>
+
     </section>
 
   </main>
+
 </div>
 
 <script type="module" src="js/history.js"></script>
+
 </body>
 </html>
