@@ -30,6 +30,7 @@ form.addEventListener("submit", async event => {
     window.location.replace("dashboard.html");
 
   } catch (error) {
+    console.error("Login error:", error.code, error.message);
     message.textContent = "Login failed. Check your email and password.";
   }
 });

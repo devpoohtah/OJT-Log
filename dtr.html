@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Time Record | InternLog</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <h2>IL <span>InternLog</span></h2>
+
+    <nav>
+      <a href="dashboard.html">My Tasks</a>
+      <a href="add-task.html">Add New Task</a>
+      <a href="history.html">Task History</a>
+      <a class="active" href="dtr.html">Daily Time Record</a>
+    </nav>
+
+    <button id="logout" class="logout">Sign Out</button>
+  </aside>
+
+  <main class="main">
+
+    <header>
+      <div>
+        <h1>Daily Time Record</h1>
+        <p class="muted">Clock in, clock out, and track your rendered OJT hours.</p>
+      </div>
+      <button type="button" id="printBtn" class="btn secondary">Print DTR</button>
+    </header>
+
+    <!-- SUMMARY -->
+    <section class="stats dtr-stats">
+      <div class="stat">
+        <span>Total Hours Rendered</span>
+        <strong id="totalHours">0.00</strong>
+        <small id="totalDays">0 days</small>
+      </div>
+      <div class="stat">
+        <span>Selected Month</span>
+        <strong id="monthHours">0.00</strong>
+        <small id="monthDays">0 days</small>
+      </div>
+      <div class="stat">
+        <span>Hours Remaining</span>
+        <strong id="remainingHours">—</strong>
+        <small>
+          Required:
+          <input type="number" id="requiredHours" min="0" step="1"
+            class="inline-input" placeholder="e.g. 300">
+        </small>
+      </div>
+    </section>
+
+    <!-- TODAY -->
+    <section class="panel">
+      <h2>Today</h2>
+      <p class="muted" id="todayLabel"></p>
+
+      <div class="dtr-today">
+        <div><span class="muted">Time In</span><strong id="todayIn">--:--</strong></div>
+        <div><span class="muted">Time Out</span><strong id="todayOut">--:--</strong></div>
+        <div><span class="muted">Hours</span><strong id="todayHours">--</strong></div>
+      </div>
+
+      <div class="actions dtr-actions">
+        <button type="button" id="timeInBtn" class="btn primary">Time In</button>
+        <button type="button" id="timeOutBtn" class="btn primary">Time Out</button>
+      </div>
+      <p id="todayMessage" class="message"></p>
+    </section>
+
+    <!-- MANUAL ENTRY -->
+    <section class="panel form-panel">
+      <h2 id="manualTitle">Add / Edit a Record</h2>
+      <p class="muted">Forgot to clock in? Enter it manually. One record per date.</p>
+
+      <form id="manualForm">
+        <div class="dtr-form-grid">
+          <div>
+            <label for="mDate">Date</label>
+            <input type="date" id="mDate" required>
+          </div>
+          <div>
+            <label for="mIn">Time In</label>
+            <input type="time" id="mIn" required>
+          </div>
+          <div>
+            <label for="mOut">Time Out</label>
+            <input type="time" id="mOut" required>
+          </div>
+          <div>
+            <label for="mBreak">Break (minutes)</label>
+            <input type="number" id="mBreak" min="0" max="480" step="5" value="60">
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" id="cancelEdit" class="btn secondary" hidden>Cancel edit</button>
+          <button type="submit" id="manualSave" class="btn primary">Save Record</button>
+        </div>
+        <p id="manualMessage" class="message"></p>
+      </form>
+    </section>
+
+    <!-- RECORDS -->
+    <section class="panel">
+      <div class="calendar-heading">
+        <div>
+          <h2>Records</h2>
+          <p class="muted">Filter by month.</p>
+        </div>
+        <input type="month" id="monthFilter">
+      </div>
+
+      <div class="table-container">
+        <table class="dtr-table">
+          <thead>
+            <tr>
+              <th>Date</th><th>Day</th><th>Time In</th><th>Time Out</th>
+              <th>Break</th><th>Hours</th><th class="no-print">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="dtrBody">
+            <tr><td colspan="7" class="muted">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script type="module" src="js/sidebar.js"></script>
+<script type="module" src="js/dtr.js"></script>
+</body>
+</html>
