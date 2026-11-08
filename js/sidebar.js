@@ -1,24 +1,24 @@
 import { auth } from "./firebase-config.js";
 import { requireAuth } from "./auth.js";
+import { loadProfile, saveProfile } from "./profile.js";
 import { updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// Shows the signed-in user's name in the sidebar.
-// Name is stored in Firebase Auth (displayName) - no extra Firestore rules needed.
+// Sidebar user card: name (Firebase Auth displayName) + optional company/department
+// (Firestore /profiles/{uid}). Fires "profile:updated" on window after a save.
 
 const sidebar = document.querySelector(".sidebar");
 const brand = sidebar?.querySelector("h2");
 
-function initials(name) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2)
-    .map(word => word[0].toUpperCase()).join("");
-}
+let profile = { company: "", department: "" };
+
+const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2)
+  .map(word => word[0].toUpperCase()).join("");
 
 function buildUserCard() {
   const card = document.createElement("button");
   card.type = "button";
-  card.id = "sidebarUser";
   card.className = "sidebar-user";
-  card.title = "Click to edit your name";
+  card.title = "Click to edit your profile";
 
   const avatar = document.createElement("span");
   avatar.className = "sidebar-avatar";
@@ -27,25 +27,41 @@ function buildUserCard() {
   text.className = "sidebar-user-text";
 
   const name = document.createElement("strong");
-  name.id = "sidebarUserName";
+  const sub = document.createElement("small");
 
-  const hint = document.createElement("small");
-  hint.textContent = "Intern · Edit name";
-
-  text.append(name, hint);
+  text.append(name, sub);
   card.append(avatar, text);
   brand.insertAdjacentElement("afterend", card);
 
-  return { card, avatar, name };
+  return { card, avatar, name, sub };
 }
 
 function render(ui, user) {
-  const name = user.displayName?.trim() || "Set your name";
-  ui.name.textContent = name;
-  ui.avatar.textContent = user.displayName ? initials(name) : "?";
+  const name = user.displayName?.trim();
+  ui.name.textContent = name || "Set your name";
+  ui.avatar.textContent = name ? initials(name) : "?";
+
+  const org = [profile.company, profile.department].filter(Boolean).join(" · ");
+  ui.sub.textContent = org || "Intern · Edit profile";
 }
 
-function askForName(user, ui, { required }) {
+function field(labelText, input) {
+  const label = document.createElement("label");
+  label.textContent = labelText;
+  return [label, input];
+}
+
+function textInput({ value = "", placeholder = "", required = false }) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.maxLength = 100;
+  input.value = value;
+  input.placeholder = placeholder;
+  input.required = required;
+  return input;
+}
+
+function openProfileModal(user, ui, { required }) {
   const overlay = document.createElement("div");
   overlay.className = "name-modal-overlay";
 
@@ -53,14 +69,17 @@ function askForName(user, ui, { required }) {
   box.className = "name-modal";
 
   const title = document.createElement("h2");
-  title.textContent = required ? "Welcome! What's your name?" : "Edit your name";
+  title.textContent = required ? "Welcome! Set up your profile" : "Edit profile";
 
-  const input = document.createElement("input");
-  input.type = "text";
-  input.maxLength = 60;
-  input.required = true;
-  input.placeholder = "e.g. Juan Dela Cruz";
-  input.value = user.displayName || "";
+  const nameInput = textInput({
+    value: user.displayName || "", placeholder: "e.g. Juan Dela Cruz", required: true
+  });
+  const companyInput = textInput({
+    value: profile.company, placeholder: "Optional"
+  });
+  const deptInput = textInput({
+    value: profile.department, placeholder: "Optional"
+  });
 
   const error = document.createElement("p");
   error.className = "message";
@@ -81,26 +100,59 @@ function askForName(user, ui, { required }) {
     cancel.addEventListener("click", () => overlay.remove());
     actions.append(cancel);
   }
-
   actions.append(save);
-  box.append(title, input, error, actions);
+
+  box.append(
+    title,
+    ...field("Name", nameInput),
+    ...field("Company (optional)", companyInput),
+    ...field("Department (optional)", deptInput),
+    error, actions
+  );
   overlay.append(box);
   document.body.append(overlay);
-  input.focus();
+  nameInput.focus();
 
   box.addEventListener("submit", async event => {
     event.preventDefault();
-    const value = input.value.trim().replace(/\s+/g, " ");
-    if (!value) return;
+
+    const name = nameInput.value.trim().replace(/\s+/g, " ");
+    const company = companyInput.value.trim();
+    const department = deptInput.value.trim();
+    if (!name) return;
 
     save.disabled = true;
+    error.textContent = "";
+
     try {
-      await updateProfile(auth.currentUser, { displayName: value });
-      render(ui, auth.currentUser);
-      overlay.remove();
+      await updateProfile(auth.currentUser, { displayName: name });
     } catch (err) {
       console.error("Name update failed:", err);
       error.textContent = "Could not save your name. Try again.";
+      save.disabled = false;
+      return;
+    }
+
+    let profileSaved = true;
+    try {
+      await saveProfile(user.uid, { company, department });
+      profile = { company, department };
+    } catch (err) {
+      console.error("Profile save failed:", err);
+      profileSaved = false;
+    }
+
+    render(ui, auth.currentUser);
+    window.dispatchEvent(new CustomEvent("profile:updated", {
+      detail: { name, ...profile }
+    }));
+
+    if (profileSaved) {
+      overlay.remove();
+    } else {
+      error.textContent =
+        "Name saved, but company/department could not be saved. " +
+        "Check that the Firestore rules for /profiles are published.";
       save.disabled = false;
     }
   });
@@ -109,9 +161,12 @@ function askForName(user, ui, { required }) {
 if (sidebar && brand) {
   const ui = buildUserCard();
 
-  requireAuth(user => {
+  requireAuth(async user => {
     render(ui, user);
-    if (!user.displayName) askForName(user, ui, { required: true });
-    ui.card.onclick = () => askForName(auth.currentUser, ui, { required: false });
+    profile = await loadProfile(user.uid);
+    render(ui, auth.currentUser);
+
+    if (!user.displayName) openProfileModal(user, ui, { required: true });
+    ui.card.onclick = () => openProfileModal(auth.currentUser, ui, { required: false });
   });
 }

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DTR Records | InternLog</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <h2>IL <span>InternLog</span></h2>
+
+    <nav>
+      <a href="dashboard.html">My Tasks</a>
+      <a href="add-task.html">Add New Task</a>
+      <a href="history.html">Task History</a>
+      <a href="dtr.html">DTR</a>
+      <a class="active" href="dtr-records.html">DTR Records</a>
+    </nav>
+
+    <button id="logout" class="logout">Sign Out</button>
+  </aside>
+
+  <main class="main">
+
+    <header>
+      <div>
+        <h1>DTR Records</h1>
+        <p class="muted">All your recorded time in and time out.</p>
+      </div>
+
+      <div class="header-actions">
+        <button type="button" id="printBtn" class="btn secondary">Print DTR</button>
+        <a href="dtr.html" class="btn primary">+ Add DTR</a>
+      </div>
+    </header>
+
+    <!-- Shown only when printing -->
+    <section class="print-header">
+      <h2>Daily Time Record</h2>
+      <p><strong>Name:</strong> <span id="printName">-</span></p>
+      <p><strong>Company:</strong> <span id="printCompany">-</span></p>
+      <p><strong>Department:</strong> <span id="printDepartment">-</span></p>
+      <p><strong>Period:</strong> <span id="printPeriod">-</span></p>
+    </section>
+
+    <section class="stats dtr-stats">
+      <div class="stat">
+        <span>Total Hours Rendered</span>
+        <strong id="totalHours">0.00</strong>
+        <small id="totalDays">0 days</small>
+      </div>
+      <div class="stat">
+        <span id="monthLabel">Selected Month</span>
+        <strong id="monthHours">0.00</strong>
+        <small id="monthDays">0 days</small>
+      </div>
+      <div class="stat">
+        <span>Hours Remaining</span>
+        <strong id="remainingHours">—</strong>
+        <small>
+          Required:
+          <input type="number" id="requiredHours" min="0" max="10000" step="1"
+            class="inline-input" placeholder="e.g. 300">
+          <span id="requiredStatus" class="required-status"></span>
+        </small>
+      </div>
+    </section>
+
+    <section class="panel">
+
+      <div class="records-filters">
+        <input
+          type="search"
+          id="search"
+          placeholder="Search by date, day, time or hours..."
+        >
+        <input type="month" id="monthFilter" title="Clear the month to show all records">
+      </div>
+
+      <div class="table-container">
+        <table class="history-table">
+
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Day</th>
+              <th>Time In</th>
+              <th>Time Out</th>
+              <th>Break</th>
+              <th>Hours</th>
+              <th class="no-print">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody id="dtrBody">
+            <tr>
+              <td colspan="7" class="empty-state">Loading DTR records...</td>
+            </tr>
+          </tbody>
+
+        </table>
+      </div>
+
+      <div class="history-footer">
+        <p id="recordCount" class="muted">Loading...</p>
+
+        <div class="pagination">
+          <button id="prevPage" class="page-btn" disabled>Previous</button>
+          <span id="pageInfo">Page 1 of 1</span>
+          <button id="nextPage" class="page-btn" disabled>Next</button>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<script type="module" src="js/sidebar.js"></script>
+<script type="module" src="js/dtr-records.js"></script>
+</body>
+</html>

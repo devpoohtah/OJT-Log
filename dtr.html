@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Daily Time Record | InternLog</title>
+  <title>DTR | InternLog</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,7 +17,8 @@
       <a href="dashboard.html">My Tasks</a>
       <a href="add-task.html">Add New Task</a>
       <a href="history.html">Task History</a>
-      <a class="active" href="dtr.html">Daily Time Record</a>
+      <a class="active" href="dtr.html">DTR</a>
+      <a href="dtr-records.html">DTR Records</a>
     </nav>
 
     <button id="logout" class="logout">Sign Out</button>
@@ -28,38 +29,16 @@
     <header>
       <div>
         <h1>Daily Time Record</h1>
-        <p class="muted">Clock in, clock out, and track your rendered OJT hours.</p>
+        <p class="muted">Clock in and out. Night shifts are supported: Time Out the next day closes your open shift.</p>
       </div>
-      <button type="button" id="printBtn" class="btn secondary">Print DTR</button>
+      <a href="dtr-records.html" class="btn secondary">View DTR Records →</a>
     </header>
 
-    <!-- SUMMARY -->
-    <section class="stats dtr-stats">
-      <div class="stat">
-        <span>Total Hours Rendered</span>
-        <strong id="totalHours">0.00</strong>
-        <small id="totalDays">0 days</small>
-      </div>
-      <div class="stat">
-        <span>Selected Month</span>
-        <strong id="monthHours">0.00</strong>
-        <small id="monthDays">0 days</small>
-      </div>
-      <div class="stat">
-        <span>Hours Remaining</span>
-        <strong id="remainingHours">—</strong>
-        <small>
-          Required:
-          <input type="number" id="requiredHours" min="0" step="1"
-            class="inline-input" placeholder="e.g. 300">
-        </small>
-      </div>
-    </section>
-
-    <!-- TODAY -->
+    <!-- TODAY / OPEN SHIFT -->
     <section class="panel">
       <h2>Today</h2>
       <p class="muted" id="todayLabel"></p>
+      <p class="muted" id="todayNote"></p>
 
       <div class="dtr-today">
         <div><span class="muted">Time In</span><strong id="todayIn">--:--</strong></div>
@@ -77,12 +56,15 @@
     <!-- MANUAL ENTRY -->
     <section class="panel form-panel">
       <h2 id="manualTitle">Add / Edit a Record</h2>
-      <p class="muted">Forgot to clock in? Enter it manually. One record per date.</p>
+      <p class="muted">
+        Forgot to clock in or out? Enter it manually. Use the date your shift
+        <strong>started</strong>. If Time Out is earlier than Time In, it counts as the next day.
+      </p>
 
       <form id="manualForm">
         <div class="dtr-form-grid">
           <div>
-            <label for="mDate">Date</label>
+            <label for="mDate">Date (shift start)</label>
             <input type="date" id="mDate" required>
           </div>
           <div>
@@ -99,37 +81,14 @@
           </div>
         </div>
 
+        <p id="mPreview" class="dtr-preview"></p>
+
         <div class="actions">
           <button type="button" id="cancelEdit" class="btn secondary" hidden>Cancel edit</button>
           <button type="submit" id="manualSave" class="btn primary">Save Record</button>
         </div>
         <p id="manualMessage" class="message"></p>
       </form>
-    </section>
-
-    <!-- RECORDS -->
-    <section class="panel">
-      <div class="calendar-heading">
-        <div>
-          <h2>Records</h2>
-          <p class="muted">Filter by month.</p>
-        </div>
-        <input type="month" id="monthFilter">
-      </div>
-
-      <div class="table-container">
-        <table class="dtr-table">
-          <thead>
-            <tr>
-              <th>Date</th><th>Day</th><th>Time In</th><th>Time Out</th>
-              <th>Break</th><th>Hours</th><th class="no-print">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="dtrBody">
-            <tr><td colspan="7" class="muted">Loading...</td></tr>
-          </tbody>
-        </table>
-      </div>
     </section>
 
   </main>
