@@ -1,7 +1,7 @@
 import { requireAuth, setupLogout } from "./auth.js";
 import { loadProfile, saveRequiredHours } from "./profile.js";
 import {
-  localDateString, parseDate, format12h, toHours,
+  localDateString, parseDate, format12h, toHours, timeOutLabel,
   fetchRecords, deleteRecord
 } from "./dtr-core.js";
 
@@ -47,8 +47,7 @@ const weekday = (date, style = "short") =>
   parseDate(date).toLocaleDateString("en-US", { weekday: style });
 
 const hoursText = r => (r.totalMinutes ? toHours(r.totalMinutes).toFixed(2) : "In progress");
-const timeOutText = r =>
-  r.timeOut ? format12h(r.timeOut) + (r.nextDay ? " +1" : "") : "--:--";
+const timeOutText = timeOutLabel;
 
 function getFilteredRecords() {
   const month = el.monthFilter.value;               // "" = all months

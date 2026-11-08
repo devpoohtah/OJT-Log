@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DTR | InternLog</title>
+  <title>DTR | OJT Tracker</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
 <div class="layout">
 
   <aside class="sidebar">
-    <h2>IL <span>InternLog</span></h2>
+    <h2><span>OJT Tracker</span></h2>
 
     <nav>
       <a href="dashboard.html">My Tasks</a>
@@ -58,7 +58,8 @@
       <h2 id="manualTitle">Add / Edit a Record</h2>
       <p class="muted">
         Forgot to clock in or out? Enter it manually. Use the date your shift
-        <strong>started</strong>. If Time Out is earlier than Time In, it counts as the next day.
+        <strong>started</strong>. Time Out Date fills in on its own (the next day when
+        Time Out is earlier than Time In) and you can change it.
       </p>
 
       <form id="manualForm">
@@ -70,6 +71,10 @@
           <div>
             <label for="mIn">Time In</label>
             <input type="time" id="mIn" required>
+          </div>
+          <div>
+            <label for="mOutDate">Time Out Date</label>
+            <input type="date" id="mOutDate" required>
           </div>
           <div>
             <label for="mOut">Time Out</label>

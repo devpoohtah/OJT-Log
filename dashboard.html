@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Internship Overview | InternLog</title>
+  <title>Internship Overview |OJT Tracker</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -54,6 +54,24 @@
         <span>Activities Recorded</span>
         <strong id="totalActivities">0</strong>
         <small>Total accomplishments</small>
+      </div>
+
+      <div class="stat">
+        <span>Total Hours Rendered</span>
+        <strong id="dtrTotalHours">--</strong>
+        <small id="dtrTotalDays">DTR hours</small>
+      </div>
+
+      <div class="stat">
+        <span>This Month</span>
+        <strong id="dtrMonthHours">--</strong>
+        <small id="dtrMonthDays">DTR hours</small>
+      </div>
+
+      <div class="stat">
+        <span>Hours Remaining</span>
+        <strong id="dtrRemaining">--</strong>
+        <small id="dtrRemainingNote">Loading...</small>
       </div>
 
     </section>
@@ -149,6 +167,7 @@
 
 <script type="module" src="js/sidebar.js"></script>
 <script type="module" src="js/dashboard.js"></script>
+<script type="module" src="js/dashboard-dtr.js"></script>
 
 </body>
 </html>

@@ -1431,3 +1431,30 @@ a.link-btn { font-size: inherit; }
   .history-table { min-width: 0; }
   .table-container { border: 0; overflow: visible; }
 }
+
+
+/* =====================================
+   DTR UPDATE 4: Time Out Date field + 5 dashboard cards
+===================================== */
+
+.dtr-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+}
+
+.dashboard-stats {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.dashboard-stats .stat small a { color: var(--primary); }
+
+@media (max-width: 1100px) {
+  .dashboard-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+  .dashboard-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 380px) {
+  .dashboard-stats { grid-template-columns: 1fr; }
+}

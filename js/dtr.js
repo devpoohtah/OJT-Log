@@ -1,8 +1,8 @@
 import { requireAuth, setupLogout } from "./auth.js";
 import {
-  DEFAULT_BREAK, localDateString, localTimeString, addDays, formatLongDate,
-  format12h, toHours, isNextDay, workedMinutes,
-  fetchRecords, saveRecord, deleteRecord
+  DEFAULT_BREAK, localDateString, localTimeString, addDays, daysBetween,
+  formatLongDate, formatShortDate, format12h, toHours, isNextDay, workedMinutes,
+  timeOutLabel, timeOutDateOf, fetchRecords, saveRecord, deleteRecord
 } from "./dtr-core.js";
 
 setupLogout();
@@ -12,8 +12,9 @@ const el = {
   todayLabel: $("todayLabel"), todayNote: $("todayNote"),
   todayIn: $("todayIn"), todayOut: $("todayOut"), todayHours: $("todayHours"),
   timeInBtn: $("timeInBtn"), timeOutBtn: $("timeOutBtn"), todayMessage: $("todayMessage"),
-  manualForm: $("manualForm"), mDate: $("mDate"), mIn: $("mIn"), mOut: $("mOut"),
-  mBreak: $("mBreak"), mPreview: $("mPreview"), manualSave: $("manualSave"),
+  manualForm: $("manualForm"), mDate: $("mDate"), mIn: $("mIn"),
+  mOutDate: $("mOutDate"), mOut: $("mOut"), mBreak: $("mBreak"),
+  mPreview: $("mPreview"), manualSave: $("manualSave"),
   manualMessage: $("manualMessage"), manualTitle: $("manualTitle"),
   cancelEdit: $("cancelEdit")
 };
@@ -21,6 +22,7 @@ const el = {
 let currentUser = null;
 let records = [];                 // newest first
 let editingDate = null;           // date of the record being edited, if any
+let outDateTouched = false;       // true once the user changes Time Out Date by hand
 
 const openShift = () => records.find(r => !r.timeOut);   // latest unclosed record
 
@@ -39,9 +41,7 @@ function renderToday() {
     : "";
 
   el.todayIn.textContent = format12h(rec?.timeIn);
-  el.todayOut.textContent = rec?.timeOut
-    ? format12h(rec.timeOut) + (rec.nextDay ? " +1" : "")
-    : "--:--";
+  el.todayOut.textContent = rec ? timeOutLabel(rec) : "--:--";
   el.todayHours.textContent = rec?.totalMinutes
     ? toHours(rec.totalMinutes).toFixed(2) : "--";
 
@@ -61,7 +61,7 @@ el.timeInBtn.addEventListener("click", async () => {
   try {
     await saveRecord(currentUser.uid, {
       date: localDateString(), timeIn: localTimeString(),
-      timeOut: null, breakMinutes: DEFAULT_BREAK, nextDay: false
+      timeOut: null, timeOutDate: null, breakMinutes: DEFAULT_BREAK
     });
     el.todayMessage.textContent = "Timed in.";
     await refresh();
@@ -78,20 +78,16 @@ el.timeOutBtn.addEventListener("click", async () => {
 
   const today = localDateString();
   const timeOut = localTimeString();
+  const offset = daysBetween(open.date, today);
 
-  let nextDay;
-  if (open.date === today) {
-    nextDay = false;
-  } else if (open.date === addDays(today, -1)) {
-    nextDay = true;                          // night shift ending this morning
-  } else {
+  if (offset < 0 || offset > 1) {
     el.todayMessage.textContent =
       `The shift from ${open.date} was never closed. Enter its Time Out in the form below.`;
     startEdit(open);
     return;
   }
 
-  const minutes = workedMinutes(open.timeIn, timeOut, open.breakMinutes, nextDay);
+  const minutes = workedMinutes(open.timeIn, timeOut, open.breakMinutes, offset);
   if (!minutes) {
     el.todayMessage.textContent =
       "Net hours would be zero or negative. Adjust the break or use the form below.";
@@ -103,7 +99,7 @@ el.timeOutBtn.addEventListener("click", async () => {
   try {
     await saveRecord(currentUser.uid, {
       date: open.date, timeIn: open.timeIn, timeOut,
-      breakMinutes: open.breakMinutes, nextDay
+      timeOutDate: today, breakMinutes: open.breakMinutes
     });
     el.todayMessage.textContent = toHours(minutes) > 16
       ? "Timed out. Over 16 hours recorded; edit the record if that's wrong."
@@ -120,27 +116,47 @@ el.timeOutBtn.addEventListener("click", async () => {
 // MANUAL ADD / EDIT
 // =====================================
 
-function updatePreview() {
-  const timeIn = el.mIn.value;
-  const timeOut = el.mOut.value;
+// Default Time Out Date: same day, or the next day when Time Out < Time In.
+function defaultOutDate() {
+  const date = el.mDate.value;
+  if (!date) return "";
+  return isNextDay(el.mIn.value, el.mOut.value) ? addDays(date, 1) : date;
+}
 
-  if (!timeIn || !timeOut) {
+function syncOutDate() {
+  if (!outDateTouched) el.mOutDate.value = defaultOutDate();
+}
+
+function updatePreview() {
+  const { value: date } = el.mDate;
+  const { value: timeIn } = el.mIn;
+  const { value: timeOut } = el.mOut;
+  const { value: outDate } = el.mOutDate;
+
+  if (!date || !timeIn || !timeOut || !outDate) {
     el.mPreview.textContent = "";
     return;
   }
 
-  const next = isNextDay(timeIn, timeOut);
-  const minutes = workedMinutes(timeIn, timeOut, el.mBreak.value, next);
+  const offset = daysBetween(date, outDate);
+  if (offset < 0) {
+    el.mPreview.textContent = "Time Out Date can't be before the shift start date.";
+    return;
+  }
 
-  el.mPreview.textContent =
-    (next ? "Time Out is the next day (+1). " : "") +
-    (minutes ? `${toHours(minutes).toFixed(2)} hrs` : "Hours would be zero or negative.");
+  const minutes = workedMinutes(timeIn, timeOut, el.mBreak.value, offset);
+  el.mPreview.textContent = minutes
+    ? `${toHours(minutes).toFixed(2)} hrs` +
+      (offset > 0 ? ` · ends ${formatShortDate(outDate)}` : "")
+    : "Hours would be zero or negative.";
 }
 
 function resetForm() {
   editingDate = null;
+  outDateTouched = false;
   el.manualForm.reset();
   el.mDate.value = localDateString();
+  el.mOutDate.value = el.mDate.value;
   el.mBreak.value = DEFAULT_BREAK;
   el.manualTitle.textContent = "Add / Edit a Record";
   el.cancelEdit.hidden = true;
@@ -153,14 +169,25 @@ function startEdit(record) {
   el.mIn.value = record.timeIn || "";
   el.mOut.value = record.timeOut || "";
   el.mBreak.value = record.breakMinutes ?? DEFAULT_BREAK;
+
+  el.mOutDate.value = record.timeOut ? timeOutDateOf(record) : record.date;
+  outDateTouched = el.mOutDate.value !== defaultOutDate();   // keep unusual dates
+
   el.manualTitle.textContent = `Editing ${record.date}`;
   el.cancelEdit.hidden = false;
   updatePreview();
   el.manualForm.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-[el.mIn, el.mOut, el.mBreak].forEach(input =>
-  input.addEventListener("input", updatePreview));
+[el.mDate, el.mIn, el.mOut].forEach(input =>
+  input.addEventListener("input", () => { syncOutDate(); updatePreview(); }));
+
+el.mOutDate.addEventListener("input", () => {
+  outDateTouched = true;
+  updatePreview();
+});
+
+el.mBreak.addEventListener("input", updatePreview);
 
 el.cancelEdit.addEventListener("click", () => {
   resetForm();
@@ -174,13 +201,20 @@ el.manualForm.addEventListener("submit", async event => {
     date: el.mDate.value,
     timeIn: el.mIn.value,
     timeOut: el.mOut.value,
+    timeOutDate: el.mOutDate.value,
     breakMinutes: Number(el.mBreak.value) || 0
   };
-  entry.nextDay = isNextDay(entry.timeIn, entry.timeOut);
 
-  if (!workedMinutes(entry.timeIn, entry.timeOut, entry.breakMinutes, entry.nextDay)) {
+  const offset = daysBetween(entry.date, entry.timeOutDate);
+  if (offset < 0) {
     el.manualMessage.textContent =
-      "Hours would be zero or negative. Check the times and the break.";
+      "Time Out Date can't be before the shift start date.";
+    return;
+  }
+
+  if (!workedMinutes(entry.timeIn, entry.timeOut, entry.breakMinutes, offset)) {
+    el.manualMessage.textContent =
+      "Hours would be zero or negative. Check the dates, times and the break.";
     return;
   }
 

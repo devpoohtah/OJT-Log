@@ -27,6 +27,12 @@ export const addDays = (str, n) => {
   return localDateString(d);
 };
 
+export const formatShortDate = str =>
+  parseDate(str).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+export const daysBetween = (from, to) =>
+  Math.round((parseDate(to) - parseDate(from)) / 86400000);
+
 export const formatLongDate = str =>
   parseDate(str).toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", year: "numeric"
@@ -51,11 +57,24 @@ export const toHours = minutes => minutes / 60;
 export const isNextDay = (timeIn, timeOut) =>
   Boolean(timeIn && timeOut) && toMinutes(timeOut) < toMinutes(timeIn);
 
+// Date the shift ended. Old records only have `nextDay`, newer ones have `timeOutDate`.
+export const timeOutDateOf = record =>
+  record.timeOutDate || (record.nextDay ? addDays(record.date, 1) : record.date);
+
+// "6:00 AM" for same-day, "6:00 AM (Nov 4)" when it ends on another date.
+export function timeOutLabel(record) {
+  if (!record.timeOut) return "--:--";
+  const outDate = timeOutDateOf(record);
+  return format12h(record.timeOut) +
+    (outDate !== record.date ? ` (${formatShortDate(outDate)})` : "");
+}
+
 // Net worked minutes, or null when the result is zero/negative or input is missing.
-export function workedMinutes(timeIn, timeOut, breakMinutes = 0, nextDay = false) {
+// dayOffset = days between the Time In date and the Time Out date (0 = same day).
+export function workedMinutes(timeIn, timeOut, breakMinutes = 0, dayOffset = 0) {
   if (!timeIn || !timeOut) return null;
   const net = toMinutes(timeOut) - toMinutes(timeIn)
-    + (nextDay ? 1440 : 0) - (Number(breakMinutes) || 0);
+    + (Number(dayOffset) || 0) * 1440 - (Number(breakMinutes) || 0);
   return net > 0 ? net : null;
 }
 
@@ -72,17 +91,20 @@ export async function fetchRecords(uid) {
 }
 
 // date = the day the shift STARTED. One record per user per date.
-export async function saveRecord(uid, { date, timeIn, timeOut, breakMinutes, nextDay }) {
-  const isNext = timeOut ? Boolean(nextDay) : false;
+// timeOutDate = the day it ENDED (defaults to the start date).
+export async function saveRecord(uid, { date, timeIn, timeOut, timeOutDate, breakMinutes }) {
+  const outDate = timeOut ? (timeOutDate || date) : null;
+  const offset = outDate ? daysBetween(date, outDate) : 0;
 
   await setDoc(recordRef(uid, date), {
     userId: uid,
     date,
     timeIn,
     timeOut: timeOut || null,
-    nextDay: isNext,
+    timeOutDate: outDate,
+    nextDay: offset > 0,                       // kept for older code/records
     breakMinutes: Number(breakMinutes) || 0,
-    totalMinutes: timeOut ? workedMinutes(timeIn, timeOut, breakMinutes, isNext) : null,
+    totalMinutes: timeOut ? workedMinutes(timeIn, timeOut, breakMinutes, offset) : null,
     updatedAt: serverTimestamp()
   }, { merge: true });
 }
