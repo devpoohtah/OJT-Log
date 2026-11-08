@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Task History | OJT Tracker</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="js/theme.js"></script>
 </head>
 <body>
 
@@ -15,11 +16,11 @@
     <h2><span>OJT Tracker</span></h2>
 
     <nav>
-      <a href="dashboard.html">My Tasks</a>
+      <a href="dashboard.html">Dashboard</a>
       <a href="add-task.html">Add New Task</a>
       <a class="active" href="history.html">Task History</a>
       <a href="dtr.html">DTR</a>
-      <a href="dtr-records.html">DTR Records</a>
+      <a href="dtr-records.html">DTR History</a>
     </nav>
 
     <button id="logout" class="logout">Sign Out</button>
@@ -33,9 +34,12 @@
         <p class="muted">All your recorded internship activities.</p>
       </div>
 
-      <a href="add-task.html" class="btn primary">
-        + Add Daily Log
-      </a>
+      <div class="header-actions">
+        <button type="button" id="exportBtn" class="btn secondary">Export PDF</button>
+        <a href="add-task.html" class="btn primary">
+          + Add Daily Log
+        </a>
+      </div>
     </header>
 
     <section class="panel">
@@ -130,11 +134,16 @@
       ></textarea>
 
       <label for="editCategory">Category</label>
-      <input
-        type="text"
-        id="editCategory"
-        placeholder="Enter category"
-      >
+      <select id="editCategory">
+        <option value="">No category</option>
+        <option value="Technical">Technical</option>
+        <option value="Development">Development</option>
+        <option value="Documentation">Documentation</option>
+        <option value="Administrative">Administrative</option>
+        <option value="Research">Research</option>
+        <option value="Meetings">Meetings</option>
+        <option value="Other">Other</option>
+      </select>
 
       <p id="editMessage" class="form-message"></p>
 
@@ -148,6 +157,64 @@
         </button>
       </div>
 
+    </form>
+
+  </div>
+</div>
+
+<!-- EXPORT PDF MODAL -->
+
+<div id="exportModal" class="modal-overlay" hidden>
+  <div class="edit-modal">
+
+    <div class="modal-heading">
+      <div>
+        <h2>Export Weekly Report</h2>
+        <p class="muted">Download your accomplishments as a PDF.</p>
+      </div>
+      <button type="button" id="exportClose" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+
+    <form id="exportForm">
+
+      <label class="option-row" for="rangeLast">
+        <input type="radio" name="range" id="rangeLast" value="last" checked>
+        <span>
+          <strong>Last week</strong>
+          <small id="lastWeekLabel" class="muted"></small>
+        </span>
+      </label>
+
+      <label class="option-row" for="rangeCustom">
+        <input type="radio" name="range" id="rangeCustom" value="custom">
+        <span><strong>Custom range</strong></span>
+      </label>
+
+      <div class="modal-grid">
+        <div>
+          <label for="exportFrom">From</label>
+          <input type="date" id="exportFrom">
+        </div>
+        <div>
+          <label for="exportTo">To</label>
+          <input type="date" id="exportTo">
+        </div>
+      </div>
+
+      <label class="option-row" for="includeDesc">
+        <input type="checkbox" id="includeDesc">
+        <span>
+          <strong>Include descriptions</strong>
+          <small class="muted">Off keeps the report short.</small>
+        </span>
+      </label>
+
+      <p id="exportMessage" class="form-message" role="status"></p>
+
+      <div class="modal-actions">
+        <button type="button" id="exportCancel" class="btn secondary">Cancel</button>
+        <button type="submit" id="exportSubmit" class="btn primary">Download PDF</button>
+      </div>
     </form>
 
   </div>

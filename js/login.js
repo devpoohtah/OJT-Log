@@ -6,6 +6,27 @@ import {
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+import { ICONS, makeThemeButton } from "./icons.js";
+
+document.getElementById("themeSlot")?.append(makeThemeButton());
+
+// Show / hide password
+const passwordInput = document.getElementById("password");
+const passwordToggle = document.getElementById("togglePassword");
+
+function renderPasswordToggle() {
+  const visible = passwordInput.type === "text";
+  passwordToggle.innerHTML = visible ? ICONS.eyeOff : ICONS.eye;
+  passwordToggle.setAttribute("aria-label", visible ? "Hide password" : "Show password");
+  passwordToggle.setAttribute("aria-pressed", String(visible));
+}
+
+passwordToggle.addEventListener("click", () => {
+  passwordInput.type = passwordInput.type === "password" ? "text" : "password";
+  renderPasswordToggle();
+});
+renderPasswordToggle();
+
 const form = document.getElementById("loginForm");
 const message = document.getElementById("loginMessage");
 

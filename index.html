@@ -6,8 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OJT Tracker | Login</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="js/theme.js"></script>
 </head>
 <body class="login-page">
+
+  <div id="themeSlot" class="theme-float"></div>
 
   <div class="login-card">
     <div class="brand-icon">OJT</div>
@@ -19,7 +22,12 @@
       <input id="email" type="email" placeholder="Enter your email" required>
 
       <label>Password</label>
-      <input id="password" type="password" placeholder="Enter your password" required>
+      <div class="password-field">
+        <input id="password" type="password" placeholder="Enter your password"
+          autocomplete="current-password" required>
+        <button type="button" id="togglePassword" class="password-toggle"
+          aria-label="Show password" aria-pressed="false"></button>
+      </div>
 
       <button type="submit" class="btn primary full">Sign In</button>
       <p id="loginMessage" class="message"></p>

@@ -1,6 +1,8 @@
 
 import { db } from "./firebase-config.js";
 import { requireAuth, setupLogout } from "./auth.js";
+import { loadProfile } from "./profile.js";
+import { setupExport } from "./report.js";
 
 import {
   collection,
@@ -254,10 +256,23 @@ function openEditModal(log, activity, index) {
     originalDate: log.date
   };
 
+  // Remove an old-category option left over from a previous edit.
+  editCategory.querySelectorAll("option[data-extra]").forEach(o => o.remove());
+
+  // Keep an old category selectable if it is not one of the 7 standard options.
+  const existing = (activity.category || "").trim();
+  if (existing && ![...editCategory.options].some(o => o.value === existing)) {
+    const extra = document.createElement("option");
+    extra.value = existing;
+    extra.textContent = existing;
+    extra.dataset.extra = "true";
+    editCategory.append(extra);
+  }
+
   editDate.value = log.date || "";
   editTitle.value = activity.title || "";
   editDescription.value = activity.description || "";
-  editCategory.value = activity.category || "";
+  editCategory.value = existing;
 
   editMessage.textContent = "";
   editModal.hidden = false;
@@ -271,6 +286,7 @@ function closeEditModal() {
   document.body.classList.remove("modal-open");
   editingActivity = null;
   editForm.reset();
+  editCategory.querySelectorAll("option[data-extra]").forEach(o => o.remove());
   editMessage.textContent = "";
 }
 
@@ -455,6 +471,18 @@ async function deleteActivity(log, index, button) {
 // =====================================
 // LOAD FIRESTORE
 // =====================================
+
+setupExport({
+  getLogs: () => logs,
+  getProfile: async () => {
+    const profile = await loadProfile(currentUser.uid);
+    return {
+      name: currentUser.displayName || "",
+      company: profile.company,
+      department: profile.department
+    };
+  }
+});
 
 requireAuth(async user => {
   currentUser = user;

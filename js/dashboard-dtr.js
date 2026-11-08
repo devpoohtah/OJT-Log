@@ -45,7 +45,7 @@ if (Object.values(el).every(Boolean)) {
         el.remaining.textContent = "--";
         el.remainingNote.replaceChildren();
         const link = document.createElement("a");
-        link.href = "dtr-records.html";
+        link.href = "dtr.html#settings";
         link.textContent = "Set required hours →";
         el.remainingNote.append(link);
       }

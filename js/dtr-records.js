@@ -1,18 +1,21 @@
 import { requireAuth, setupLogout } from "./auth.js";
-import { loadProfile, saveRequiredHours } from "./profile.js";
+import { loadProfile } from "./profile.js";
 import {
-  localDateString, parseDate, format12h, toHours, timeOutLabel,
-  fetchRecords, deleteRecord
+  DEFAULT_BREAK, localDateString, parseDate, addDays, daysBetween, formatShortDate,
+  format12h, toHours, isNextDay, workedMinutes, timeOutLabel, timeOutDateOf,
+  fetchRecords, saveRecord, deleteRecord
 } from "./dtr-core.js";
 
 setupLogout();
 
 const $ = id => document.getElementById(id);
 const el = {
-  totalHours: $("totalHours"), totalDays: $("totalDays"),
-  monthLabel: $("monthLabel"), monthHours: $("monthHours"), monthDays: $("monthDays"),
-  remainingHours: $("remainingHours"), requiredHours: $("requiredHours"),
-  requiredStatus: $("requiredStatus"),
+  addBtn: $("addBtn"),
+  modal: $("recordModal"), modalTitle: $("recordModalTitle"),
+  form: $("recordForm"), close: $("recordClose"), cancel: $("recordCancel"),
+  rDate: $("rDate"), rIn: $("rIn"), rOutDate: $("rOutDate"), rOut: $("rOut"),
+  rBreak: $("rBreak"), rPreview: $("rPreview"), rMessage: $("rMessage"),
+  save: $("recordSave"),
   search: $("search"), monthFilter: $("monthFilter"),
   dtrBody: $("dtrBody"), recordCount: $("recordCount"),
   prevPage: $("prevPage"), nextPage: $("nextPage"), pageInfo: $("pageInfo"),
@@ -37,7 +40,8 @@ let records = [];                     // newest first
 let currentPage = 1;
 let printAll = false;                 // true while printing: show every row, no paging
 
-const legacyRequiredKey = () => `ojt-required-hours-${currentUser.uid}`;
+let editingDate = null;               // date of the record being edited (null = adding)
+let outDateTouched = false;           // true once Time Out Date is changed by hand
 
 // =====================================
 // HELPERS
@@ -64,9 +68,6 @@ function getFilteredRecords() {
     });
 }
 
-const sumHours = list => list.reduce((sum, r) => sum + toHours(r.totalMinutes), 0);
-const plural = n => `${n} day${n === 1 ? "" : "s"}`;
-
 // =====================================
 // PRINT HEADER
 // =====================================
@@ -89,29 +90,6 @@ window.addEventListener("profile:updated", event => setPrintProfile(event.detail
 // Print every matching row, not just the current page.
 window.addEventListener("beforeprint", () => { printAll = true; renderTable(); });
 window.addEventListener("afterprint", () => { printAll = false; renderTable(); });
-
-// =====================================
-// STATS
-// =====================================
-
-function renderStats() {
-  const done = records.filter(r => r.totalMinutes);
-  const total = sumHours(done);
-
-  el.totalHours.textContent = total.toFixed(2);
-  el.totalDays.textContent = plural(done.length);
-
-  const month = el.monthFilter.value;
-  const scoped = month ? done.filter(r => r.date.startsWith(month)) : done;
-
-  el.monthLabel.textContent = month ? "Selected Month" : "All Records";
-  el.monthHours.textContent = sumHours(scoped).toFixed(2);
-  el.monthDays.textContent = plural(scoped.length);
-
-  const required = Number(el.requiredHours.value);
-  el.remainingHours.textContent = required > 0
-    ? Math.max(required - total, 0).toFixed(2) : "—";
-}
 
 // =====================================
 // TABLE + PAGINATION (same pattern as Task History)
@@ -165,9 +143,7 @@ function renderTable() {
     edit.type = "button";
     edit.className = "small-btn";
     edit.textContent = "Edit";
-    edit.addEventListener("click", () => {
-      window.location.href = `dtr.html?edit=${encodeURIComponent(record.date)}`;
-    });
+    edit.addEventListener("click", () => openModal(record));
 
     const del = document.createElement("button");
     del.type = "button";
@@ -189,7 +165,6 @@ function renderTable() {
 
 function render() {
   setPrintPeriod();
-  renderStats();
   renderTable();
 }
 
@@ -237,53 +212,146 @@ async function removeRecord(record, button) {
   }
 }
 
-// =====================================
-// REQUIRED HOURS (saved in Firestore /profiles)
-// =====================================
-
 el.printBtn.addEventListener("click", () => window.print());
 
-el.requiredHours.addEventListener("input", renderStats);
+// =====================================
+// ADD / EDIT MODAL
+// =====================================
 
-el.requiredHours.addEventListener("change", async () => {
-  const value = Number(el.requiredHours.value);
-  const hours = value > 0 ? value : null;
+function defaultOutDate() {
+  const date = el.rDate.value;
+  if (!date) return "";
+  return isNextDay(el.rIn.value, el.rOut.value) ? addDays(date, 1) : date;
+}
 
-  el.requiredStatus.textContent = "Saving...";
-  try {
-    await saveRequiredHours(currentUser.uid, hours);
-    el.requiredStatus.textContent = "Saved";
-    setTimeout(() => { el.requiredStatus.textContent = ""; }, 2000);
-  } catch (err) {
-    console.error(err);
-    el.requiredStatus.textContent =
-      "Couldn't save. Check the Firestore rules for /profiles.";
+function syncOutDate() {
+  if (!outDateTouched) el.rOutDate.value = defaultOutDate();
+}
+
+function updatePreview() {
+  const { value: date } = el.rDate;
+  const { value: timeIn } = el.rIn;
+  const { value: timeOut } = el.rOut;
+  const { value: outDate } = el.rOutDate;
+
+  if (!date || !timeIn || !timeOut || !outDate) {
+    el.rPreview.textContent = "";
+    return;
   }
+
+  const offset = daysBetween(date, outDate);
+  if (offset < 0) {
+    el.rPreview.textContent = "Time Out Date can't be before the shift start date.";
+    return;
+  }
+
+  const minutes = workedMinutes(timeIn, timeOut, el.rBreak.value, offset);
+  el.rPreview.textContent = minutes
+    ? `${toHours(minutes).toFixed(2)} hrs` +
+      (offset > 0 ? ` · ends ${formatShortDate(outDate)}` : "")
+    : "Hours would be zero or negative.";
+}
+
+function openModal(record = null) {
+  editingDate = record ? record.date : null;
+  el.form.reset();
+  el.rMessage.textContent = "";
+
+  if (record) {
+    el.modalTitle.textContent = `Edit DTR Record`;
+    el.rDate.value = record.date;
+    el.rIn.value = record.timeIn || "";
+    el.rOut.value = record.timeOut || "";
+    el.rBreak.value = record.breakMinutes ?? DEFAULT_BREAK;
+    el.rOutDate.value = record.timeOut ? timeOutDateOf(record) : record.date;
+    outDateTouched = el.rOutDate.value !== defaultOutDate();   // keep unusual dates
+  } else {
+    el.modalTitle.textContent = "Add DTR Record";
+    outDateTouched = false;
+    el.rDate.value = localDateString();
+    el.rOutDate.value = el.rDate.value;
+    el.rBreak.value = DEFAULT_BREAK;
+  }
+
+  updatePreview();
+  el.modal.hidden = false;
+  document.body.classList.add("modal-open");
+  (record ? el.rIn : el.rDate).focus();
+}
+
+function closeModal() {
+  el.modal.hidden = true;
+  document.body.classList.remove("modal-open");
+  editingDate = null;
+}
+
+[el.rDate, el.rIn, el.rOut].forEach(input =>
+  input.addEventListener("input", () => { syncOutDate(); updatePreview(); }));
+
+el.rOutDate.addEventListener("input", () => {
+  outDateTouched = true;
+  updatePreview();
+});
+el.rBreak.addEventListener("input", updatePreview);
+
+el.addBtn.addEventListener("click", () => openModal());
+el.close.addEventListener("click", closeModal);
+el.cancel.addEventListener("click", closeModal);
+el.modal.addEventListener("click", event => {
+  if (event.target === el.modal) closeModal();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !el.modal.hidden) closeModal();
 });
 
-async function initRequiredHours(profile) {
-  let hours = profile.requiredHours;
+el.form.addEventListener("submit", async event => {
+  event.preventDefault();
 
-  // One-time migration of the value the old version kept in this browser.
-  if (hours === null) {
-    let legacy = 0;
-    try { legacy = Number(localStorage.getItem(legacyRequiredKey())) || 0; } catch {}
+  const entry = {
+    date: el.rDate.value,
+    timeIn: el.rIn.value,
+    timeOut: el.rOut.value,
+    timeOutDate: el.rOutDate.value,
+    breakMinutes: Number(el.rBreak.value) || 0
+  };
 
-    if (legacy > 0) {
-      hours = legacy;
-      if (profile.loaded) {
-        try {
-          await saveRequiredHours(currentUser.uid, legacy);
-          localStorage.removeItem(legacyRequiredKey());
-        } catch (err) {
-          console.warn("Could not migrate required hours:", err.code || err.message);
-        }
-      }
-    }
+  const offset = daysBetween(entry.date, entry.timeOutDate);
+  if (offset < 0) {
+    el.rMessage.textContent = "Time Out Date can't be before the shift start date.";
+    return;
   }
 
-  el.requiredHours.value = hours > 0 ? hours : "";
-}
+  if (!workedMinutes(entry.timeIn, entry.timeOut, entry.breakMinutes, offset)) {
+    el.rMessage.textContent =
+      "Hours would be zero or negative. Check the dates, times and the break.";
+    return;
+  }
+
+  const replacing = records.some(r => r.date === entry.date) && entry.date !== editingDate;
+  if (replacing && !confirm(`A record for ${entry.date} already exists. Replace it?`)) {
+    return;
+  }
+
+  el.save.disabled = true;
+  el.rMessage.textContent = "Saving...";
+  try {
+    await saveRecord(currentUser.uid, entry);
+
+    // Date was changed while editing: remove the record under the old date.
+    if (editingDate && editingDate !== entry.date) {
+      await deleteRecord(currentUser.uid, editingDate);
+    }
+
+    records = await fetchRecords(currentUser.uid);
+    closeModal();
+    render();
+  } catch (err) {
+    console.error(err);
+    el.rMessage.textContent = `Unable to save: ${err.code || err.message}`;
+  } finally {
+    el.save.disabled = false;
+  }
+});
 
 // =====================================
 // INIT
@@ -295,7 +363,6 @@ requireAuth(async user => {
 
   const profile = await loadProfile(user.uid);
   setPrintProfile({ name: user.displayName, ...profile });
-  await initRequiredHours(profile);
 
   try {
     records = await fetchRecords(user.uid);

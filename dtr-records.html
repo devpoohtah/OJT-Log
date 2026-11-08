@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DTR Records | OJT Tracker</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="js/theme.js"></script>
 </head>
 <body>
 
@@ -14,11 +15,11 @@
     <h2><span>OJT Tracker</span></h2>
 
     <nav>
-      <a href="dashboard.html">My Tasks</a>
+      <a href="dashboard.html">Dashboard</a>
       <a href="add-task.html">Add New Task</a>
       <a href="history.html">Task History</a>
       <a href="dtr.html">DTR</a>
-      <a class="active" href="dtr-records.html">DTR Records</a>
+      <a class="active" href="dtr-records.html">DTR History</a>
     </nav>
 
     <button id="logout" class="logout">Sign Out</button>
@@ -28,13 +29,13 @@
 
     <header>
       <div>
-        <h1>DTR Records</h1>
+        <h1>DTR History</h1>
         <p class="muted">All your recorded time in and time out.</p>
       </div>
 
       <div class="header-actions">
         <button type="button" id="printBtn" class="btn secondary">Print DTR</button>
-        <a href="dtr.html" class="btn primary">+ Add DTR</a>
+        <button type="button" id="addBtn" class="btn primary">+ Add DTR</button>
       </div>
     </header>
 
@@ -45,29 +46,6 @@
       <p><strong>Company:</strong> <span id="printCompany">-</span></p>
       <p><strong>Department:</strong> <span id="printDepartment">-</span></p>
       <p><strong>Period:</strong> <span id="printPeriod">-</span></p>
-    </section>
-
-    <section class="stats dtr-stats">
-      <div class="stat">
-        <span>Total Hours Rendered</span>
-        <strong id="totalHours">0.00</strong>
-        <small id="totalDays">0 days</small>
-      </div>
-      <div class="stat">
-        <span id="monthLabel">Selected Month</span>
-        <strong id="monthHours">0.00</strong>
-        <small id="monthDays">0 days</small>
-      </div>
-      <div class="stat">
-        <span>Hours Remaining</span>
-        <strong id="remainingHours">—</strong>
-        <small>
-          Required:
-          <input type="number" id="requiredHours" min="0" max="10000" step="1"
-            class="inline-input" placeholder="e.g. 300">
-          <span id="requiredStatus" class="required-status"></span>
-        </small>
-      </div>
     </section>
 
     <section class="panel">
@@ -118,6 +96,54 @@
     </section>
 
   </main>
+</div>
+
+<!-- ADD / EDIT DTR MODAL -->
+
+<div id="recordModal" class="modal-overlay" hidden>
+  <div class="edit-modal">
+
+    <div class="modal-heading">
+      <div>
+        <h2 id="recordModalTitle">Add DTR Record</h2>
+        <p class="muted">Use the date your shift <strong>started</strong>.</p>
+      </div>
+      <button type="button" id="recordClose" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+
+    <form id="recordForm">
+      <div class="modal-grid">
+        <div>
+          <label for="rDate">Date (shift start)</label>
+          <input type="date" id="rDate" required>
+        </div>
+        <div>
+          <label for="rIn">Time In</label>
+          <input type="time" id="rIn" required>
+        </div>
+        <div>
+          <label for="rOutDate">Time Out Date</label>
+          <input type="date" id="rOutDate" required>
+        </div>
+        <div>
+          <label for="rOut">Time Out</label>
+          <input type="time" id="rOut" required>
+        </div>
+      </div>
+
+      <label for="rBreak">Break (minutes)</label>
+      <input type="number" id="rBreak" min="0" max="480" step="5" value="60">
+
+      <p id="rPreview" class="dtr-preview"></p>
+      <p id="rMessage" class="form-message"></p>
+
+      <div class="modal-actions">
+        <button type="button" id="recordCancel" class="btn secondary">Cancel</button>
+        <button type="submit" id="recordSave" class="btn primary">Save Record</button>
+      </div>
+    </form>
+
+  </div>
 </div>
 
 <script type="module" src="js/sidebar.js"></script>

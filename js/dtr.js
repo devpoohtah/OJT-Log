@@ -1,4 +1,5 @@
 import { requireAuth, setupLogout } from "./auth.js";
+import { loadProfile, saveRequiredHours } from "./profile.js";
 import {
   DEFAULT_BREAK, localDateString, localTimeString, addDays, daysBetween,
   formatLongDate, formatShortDate, format12h, toHours, isNextDay, workedMinutes,
@@ -245,12 +246,69 @@ el.manualForm.addEventListener("submit", async event => {
 });
 
 // =====================================
+// OJT SETTINGS (required hours, saved in Firestore /profiles)
+// =====================================
+
+const settingsForm = $("settingsForm");
+const requiredInput = $("requiredHours");
+const settingsSave = $("settingsSave");
+const settingsMessage = $("settingsMessage");
+
+async function initSettings() {
+  const profile = await loadProfile(currentUser.uid);
+  let hours = profile.requiredHours;
+
+  // One-time migration of the value an older version kept in this browser.
+  if (hours === null) {
+    let legacy = 0;
+    const key = `ojt-required-hours-${currentUser.uid}`;
+    try { legacy = Number(localStorage.getItem(key)) || 0; } catch {}
+
+    if (legacy > 0) {
+      hours = legacy;
+      if (profile.loaded) {
+        try {
+          await saveRequiredHours(currentUser.uid, legacy);
+          localStorage.removeItem(key);
+        } catch (err) {
+          console.warn("Could not migrate required hours:", err.code || err.message);
+        }
+      }
+    }
+  }
+
+  requiredInput.value = hours > 0 ? hours : "";
+}
+
+settingsForm.addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const value = Number(requiredInput.value);
+  const hours = value > 0 ? value : null;
+
+  settingsSave.disabled = true;
+  settingsMessage.textContent = "Saving...";
+  try {
+    await saveRequiredHours(currentUser.uid, hours);
+    settingsMessage.textContent = hours
+      ? `Saved. Required hours: ${hours}.` : "Saved. Required hours cleared.";
+  } catch (err) {
+    console.error(err);
+    settingsMessage.textContent =
+      "Couldn't save. Check that the Firestore rules for /profiles are published.";
+  } finally {
+    settingsSave.disabled = false;
+  }
+});
+
+// =====================================
 // INIT
 // =====================================
 
 requireAuth(async user => {
   currentUser = user;
   resetForm();
+  initSettings().catch(err => console.warn("Settings load failed:", err));
 
   try {
     await refresh();

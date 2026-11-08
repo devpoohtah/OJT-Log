@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DTR | OJT Tracker</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="js/theme.js"></script>
 </head>
 <body>
 
@@ -14,11 +15,11 @@
     <h2><span>OJT Tracker</span></h2>
 
     <nav>
-      <a href="dashboard.html">My Tasks</a>
+      <a href="dashboard.html">Dashboard</a>
       <a href="add-task.html">Add New Task</a>
       <a href="history.html">Task History</a>
       <a class="active" href="dtr.html">DTR</a>
-      <a href="dtr-records.html">DTR Records</a>
+      <a href="dtr-records.html">DTR History</a>
     </nav>
 
     <button id="logout" class="logout">Sign Out</button>
@@ -93,6 +94,25 @@
           <button type="submit" id="manualSave" class="btn primary">Save Record</button>
         </div>
         <p id="manualMessage" class="message"></p>
+      </form>
+    </section>
+
+    <!-- OJT SETTINGS -->
+    <section class="panel form-panel" id="settings">
+      <h2>OJT Settings</h2>
+      <p class="muted">
+        Total hours you must render. The dashboard uses this to show your remaining hours.
+      </p>
+
+      <form id="settingsForm">
+        <label for="requiredHours">Required hours</label>
+        <input type="number" id="requiredHours" min="0" max="10000" step="1"
+          placeholder="e.g. 300">
+
+        <div class="actions">
+          <button type="submit" id="settingsSave" class="btn primary">Save</button>
+        </div>
+        <p id="settingsMessage" class="message"></p>
       </form>
     </section>
 
