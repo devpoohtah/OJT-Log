@@ -1,4 +1,5 @@
 import { db } from "./firebase-config.js";
+import { formatDate, formatDateWithWeekday } from "./format.js";
 import {
   collection, query, where, getDocs, doc, setDoc, deleteDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -33,10 +34,10 @@ export const formatShortDate = str =>
 export const daysBetween = (from, to) =>
   Math.round((parseDate(to) - parseDate(from)) / 86400000);
 
-export const formatLongDate = str =>
-  parseDate(str).toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", year: "numeric"
-  });
+// "Fri, Nov 13, 2026"
+export const formatLongDate = str => formatDateWithWeekday(str);
+
+export { formatDate };
 
 export function format12h(time) {
   if (!time) return "--:--";

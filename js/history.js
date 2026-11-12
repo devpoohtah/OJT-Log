@@ -3,6 +3,8 @@ import { db } from "./firebase-config.js";
 import { requireAuth, setupLogout } from "./auth.js";
 import { loadProfile } from "./profile.js";
 import { setupExport } from "./report.js";
+import { formatDate } from "./format.js";
+import { fetchRecords } from "./dtr-core.js";
 
 import {
   collection,
@@ -36,6 +38,7 @@ const editDate = document.getElementById("editDate");
 const editTitle = document.getElementById("editTitle");
 const editDescription = document.getElementById("editDescription");
 const editCategory = document.getElementById("editCategory");
+const editKnowledge = document.getElementById("editKnowledge");
 const editMessage = document.getElementById("editMessage");
 const saveEdit = document.getElementById("saveEdit");
 
@@ -45,7 +48,7 @@ const cancelEdit = document.getElementById("cancelEdit");
 const requiredElements = [
   tableBody, search, historyCount, prevPage, nextPage,
   pageInfo, editModal, editForm, editDate, editTitle,
-  editDescription, editCategory, editMessage, saveEdit,
+  editDescription, editCategory, editKnowledge, editMessage, saveEdit,
   closeModal, cancelEdit
 ];
 
@@ -95,6 +98,57 @@ function createCell(value, className = "") {
   return cell;
 }
 
+// Long text stays on one line and is cut with "..."; the full text shows on hover
+// (title tooltip) and expands in place when tapped or clicked.
+function createClipCell(value, className = "") {
+  const cell = document.createElement("td");
+  if (className) cell.className = className;
+
+  const clip = document.createElement("div");
+  clip.className = "cell-clip";
+  clip.textContent = value || "-";
+  clip.title = value || "";
+  clip.addEventListener("click", () => clip.classList.toggle("expanded"));
+
+  cell.appendChild(clip);
+  return cell;
+}
+
+// Knowledge/skills belong to the whole day (they live on the daily log record).
+// A day can have more than one log, so combine the distinct non-empty texts.
+function knowledgeForDate(date) {
+  const texts = logs
+    .filter(log => log.date === date)
+    .map(log => (log.knowledge || "").trim())
+    .filter(Boolean);
+
+  return [...new Set(texts)].join("\n");
+}
+
+// Save one knowledge text for the whole day: set it on the target log and clear it
+// on the day's other logs, so there is a single source of truth.
+async function applyKnowledge(target, text) {
+  const writes = [];
+
+  logs.filter(log => log.date === target.date).forEach(log => {
+    const wanted = log.id === target.id ? text : "";
+    if ((log.knowledge || "") !== wanted) writes.push([log, wanted]);
+  });
+
+  if (!writes.length) return;
+
+  const batch = writeBatch(db);
+  writes.forEach(([log, value]) => {
+    batch.update(doc(db, "dailyLogs", log.id), {
+      knowledge: value,
+      updatedAt: serverTimestamp()
+    });
+  });
+  await batch.commit();
+
+  writes.forEach(([log, value]) => { log.knowledge = value; });
+}
+
 function getFilteredActivities() {
   const term = search.value.toLowerCase().trim();
 
@@ -102,6 +156,7 @@ function getFilteredActivities() {
     .filter(({ log, activity }) => {
       const searchable = [
         log.date,
+        formatDate(log.date),
         activity.title,
         activity.description,
         activity.category
@@ -159,17 +214,17 @@ function renderHistory() {
   pageRows.forEach(({ log, activity, index }) => {
     const row = document.createElement("tr");
 
-    row.appendChild(createCell(log.date));
+    row.appendChild(createCell(formatDate(log.date), "date-cell"));
 
     row.appendChild(
-      createCell(
+      createClipCell(
         activity.title || "Untitled activity",
         "activity-title"
       )
     );
 
     row.appendChild(
-      createCell(activity.description, "description-cell")
+      createClipCell(activity.description, "description-cell")
     );
 
     const categoryCell = document.createElement("td");
@@ -250,10 +305,13 @@ search.addEventListener("input", () => {
 // =====================================
 
 function openEditModal(log, activity, index) {
+  const knowledge = knowledgeForDate(log.date);
+
   editingActivity = {
     logId: log.id,
     index,
-    originalDate: log.date
+    originalDate: log.date,
+    initialKnowledge: knowledge
   };
 
   // Remove an old-category option left over from a previous edit.
@@ -273,6 +331,7 @@ function openEditModal(log, activity, index) {
   editTitle.value = activity.title || "";
   editDescription.value = activity.description || "";
   editCategory.value = existing;
+  editKnowledge.value = knowledge;
 
   editMessage.textContent = "";
   editModal.hidden = false;
@@ -318,6 +377,8 @@ editForm.addEventListener("submit", async event => {
   const description = editDescription.value.trim();
   const category = editCategory.value.trim();
   const newDate = editDate.value;
+  const knowledge = editKnowledge.value.trim();
+  const knowledgeChanged = knowledge !== editingActivity.initialKnowledge;
 
   if (!title || !description || !newDate) {
     editMessage.textContent =
@@ -346,6 +407,8 @@ editForm.addEventListener("submit", async event => {
 
   saveEdit.disabled = true;
   saveEdit.textContent = "Saving...";
+
+  let targetLog = log;          // the log that ends up holding this activity
 
   try {
     if (newDate === log.date) {
@@ -398,12 +461,18 @@ editForm.addEventListener("submit", async event => {
         logs = logs.filter(item => item.id !== log.id);
       }
 
-      logs.push({
+      targetLog = {
         id: newLogRef.id,
         userId: currentUser.uid,
         date: newDate,
         activities: [updatedActivity]
-      });
+      };
+
+      logs.push(targetLog);
+    }
+
+    if (knowledgeChanged) {
+      await applyKnowledge(targetLog, knowledge);
     }
 
     closeEditModal();
@@ -474,12 +543,14 @@ async function deleteActivity(log, index, button) {
 
 setupExport({
   getLogs: () => logs,
+  getRecords: () => fetchRecords(currentUser.uid),
   getProfile: async () => {
     const profile = await loadProfile(currentUser.uid);
     return {
       name: currentUser.displayName || "",
       company: profile.company,
-      department: profile.department
+      department: profile.department,
+      signature: profile.signature
     };
   }
 });

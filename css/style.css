@@ -1818,3 +1818,181 @@ body.modal-open { overflow: hidden; }
   [data-theme="dark"] .history-table td { color: #202b3c; border-color: #d1d5db; }
   .menu-toggle, .sidebar-backdrop { display: none !important; }
 }
+
+
+/* =====================================
+   UPDATE 7: date format, one-line table cells, calendar DTR, signature
+===================================== */
+
+.date-hint {
+  display: block;
+  margin: -12px 0 12px;
+  min-height: 15px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.modal-grid .date-hint { margin: -12px 0 14px; }
+
+.edit-modal .option-row[hidden] { display: none; }
+
+/* ---------- Sidebar: today's date ---------- */
+
+.sidebar-date {
+  margin: -30px 0 40px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: #9fb0c8;
+}
+
+@media (min-width: 701px) {
+  html.sidebar-collapsed .sidebar-date { display: none; }
+  html.sidebar-collapsed .sidebar h2 { margin-bottom: 40px; }
+}
+
+@media (max-width: 700px) {
+  .sidebar-date { margin: -26px 0 22px; }
+}
+
+/* ---------- Tables: dates stay on one line, long text is cut with "..." ---------- */
+
+.date-cell,
+.history-table td.date-cell { white-space: nowrap; }
+
+.cell-clip {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cell-clip.expanded {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+.history-table td.description-cell { min-width: 160px; max-width: none; }
+.history-table td.description-cell .cell-clip { max-width: 320px; }
+.history-table td.activity-title { min-width: 140px; }
+
+@media (max-width: 700px) {
+  .cell-clip,
+  .history-table td.description-cell .cell-clip { max-width: 170px; }
+}
+
+/* ---------- Dashboard calendar: tasks + DTR hours ---------- */
+
+.calendar-day { min-height: 74px; gap: 2px; }
+.calendar-empty { min-height: 74px; }
+
+.calendar-day-hours {
+  font-size: 9px;
+  font-weight: 600;
+  color: #0f766e;
+}
+
+.calendar-day.selected .calendar-day-hours { color: #ffffff; }
+
+.txt-short { display: none; }
+
+.legend-dot-dtr { background: #0f766e; margin-left: 12px; }
+
+.selected-dtr {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.selected-dtr-title { font-size: 15px; margin-bottom: 12px; }
+
+.selected-dtr-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.selected-dtr-grid > div {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--background);
+}
+
+.selected-dtr-grid small { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.selected-dtr-grid strong { font-size: 14px; }
+
+@media (max-width: 700px) {
+  .calendar-day { min-height: 56px; }
+  .calendar-empty { min-height: 56px; }
+  .txt-long { display: none; }
+  .txt-short { display: inline; }
+  .selected-dtr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .calendar-legend { flex-wrap: wrap; }
+}
+
+@media (max-width: 380px) {
+  .calendar-day { min-height: 50px; }
+  .calendar-day-hours { font-size: 7px; }
+}
+
+/* ---------- Profile popup: signature ---------- */
+
+.name-modal { max-height: 92vh; overflow-y: auto; }
+
+.signature-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  min-height: 70px;
+  border: 1px dashed var(--border);
+  border-radius: 9px;
+  flex-wrap: wrap;
+}
+
+.signature-preview {
+  max-width: 190px;
+  max-height: 64px;
+  object-fit: contain;
+  /* the saved PNG is transparent; show it on white like the printed page */
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.signature-preview[hidden],
+.signature-empty[hidden],
+.signature-buttons .small-btn[hidden] { display: none; }
+
+.signature-empty { font-size: 13px; }
+.signature-buttons { display: flex; gap: 8px; margin-left: auto; }
+.name-modal small.muted { display: block; margin-top: 8px; font-size: 12px; }
+
+/* ---------- Dark theme additions ---------- */
+
+[data-theme="dark"] .calendar-day-hours { color: #5eead4; }
+[data-theme="dark"] .calendar-day.selected .calendar-day-hours { color: #ffffff; }
+[data-theme="dark"] .legend-dot-dtr { background: #5eead4; }
+[data-theme="dark"] .selected-dtr-grid > div { background: #131c2f; }
+[data-theme="dark"] .signature-box { border-color: #35538a; }
+
+@media print {
+  .sidebar-date { display: none !important; }
+}
+
+/* Task History: fixed column widths so Edit/Delete never get pushed off-screen.
+   The two text columns share the remaining width and cut long text with "...". */
+.task-table { table-layout: fixed; width: 100%; min-width: 780px; }
+.task-table th:nth-child(1) { width: 140px; }
+.task-table th:nth-child(4) { width: 150px; }
+.task-table th:nth-child(5) { width: 160px; }
+.task-table td { overflow: hidden; }
+.task-table td.activity-title,
+.task-table td.description-cell { min-width: 0; max-width: none; }
+.task-table .cell-clip,
+.task-table td.description-cell .cell-clip { max-width: 100%; }
+
+.signature-box input[type="file"] { display: none; }

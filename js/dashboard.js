@@ -1,6 +1,8 @@
 
 import { db } from "./firebase-config.js";
 import { requireAuth, setupLogout } from "./auth.js";
+import { formatDate, formatMonthYear } from "./format.js";
+import { fetchRecords, toHours, format12h, timeOutLabel } from "./dtr-core.js";
 
 import {
   collection,
@@ -25,6 +27,7 @@ const elements = {
   selectedDateTitle: document.getElementById("selectedDateTitle"),
   selectedDateSubtitle: document.getElementById("selectedDateSubtitle"),
   selectedActivities: document.getElementById("selectedActivities"),
+  selectedDtr: document.getElementById("selectedDtr"),
   categoryBreakdown: document.getElementById("categoryBreakdown")
 };
 
@@ -43,6 +46,7 @@ if (missing.length) {
 
 let logs = [];
 let dailyActivities = {};
+let dtrByDate = {};          // "YYYY-MM-DD" (shift start date) -> DTR record
 
 let selectedDate = getLocalDateString(new Date());
 
@@ -59,19 +63,6 @@ function getLocalDateString(date) {
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
-}
-
-function formatDate(dateString) {
-  const [year, month, day] = dateString.split("-").map(Number);
-
-  return new Date(year, month - 1, day).toLocaleDateString(
-    "en-US",
-    {
-      month: "long",
-      day: "numeric",
-      year: "numeric"
-    }
-  );
 }
 
 // =====================================
@@ -121,6 +112,19 @@ function renderStatistics() {
 // CALENDAR
 // =====================================
 
+// Two spans: the long text normally, a shorter one on narrow phones (CSS swaps them).
+function shortLong(long, short) {
+  const wrap = document.createDocumentFragment();
+  const a = document.createElement("span");
+  a.className = "txt-long";
+  a.textContent = long;
+  const b = document.createElement("span");
+  b.className = "txt-short";
+  b.textContent = short;
+  wrap.append(a, b);
+  return wrap;
+}
+
 function renderCalendar() {
   elements.calendarDays.replaceChildren();
 
@@ -131,10 +135,7 @@ function renderCalendar() {
   const daysInMonth = lastDay.getDate();
 
   elements.calendarMonth.textContent =
-    firstDay.toLocaleDateString("en-US", {
-      month: "long",
-      year: "numeric"
-    });
+    formatMonthYear(`${displayedYear}-${displayedMonth + 1}`);
 
   const today = getLocalDateString(new Date());
 
@@ -153,6 +154,7 @@ function renderCalendar() {
 
     const activities = getActivitiesForDate(dateString);
     const hasActivities = activities.length > 0;
+    const dtr = dtrByDate[dateString];
 
     const button = document.createElement("button");
 
@@ -161,6 +163,10 @@ function renderCalendar() {
 
     if (hasActivities) {
       button.classList.add("has-activities");
+    }
+
+    if (dtr) {
+      button.classList.add("has-dtr");
     }
 
     if (dateString === selectedDate) {
@@ -181,10 +187,23 @@ function renderCalendar() {
       const count = document.createElement("span");
       count.className = "calendar-day-count";
 
-      count.textContent =
-        `${activities.length} ${activities.length === 1 ? "task" : "tasks"}`;
+      count.append(
+        shortLong(`${activities.length} ${activities.length === 1 ? "task" : "tasks"}`,
+                  `${activities.length}T`)
+      );
 
       button.appendChild(count);
+    }
+
+    if (dtr) {
+      const hours = document.createElement("span");
+      hours.className = "calendar-day-hours";
+      hours.append(
+        dtr.totalMinutes
+          ? shortLong(`${toHours(dtr.totalMinutes).toFixed(1)}h`, `${toHours(dtr.totalMinutes).toFixed(0)}h`)
+          : shortLong("In progress", "In")
+      );
+      button.appendChild(hours);
     }
 
     button.addEventListener("click", () => {
@@ -201,8 +220,51 @@ function renderCalendar() {
 // SELECTED DATE
 // =====================================
 
+function renderSelectedDtr() {
+  const box = elements.selectedDtr;
+  box.replaceChildren();
+
+  const heading = document.createElement("h3");
+  heading.className = "selected-dtr-title";
+  heading.textContent = "Daily Time Record";
+  box.append(heading);
+
+  const record = dtrByDate[selectedDate];
+
+  if (!record) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No DTR record for this date.";
+    box.append(empty);
+    return;
+  }
+
+  const rows = [
+    ["Time In", format12h(record.timeIn)],
+    ["Time Out", timeOutLabel(record)],
+    ["Break", `${record.breakMinutes || 0} min`],
+    ["Total Hours", record.totalMinutes ? `${toHours(record.totalMinutes).toFixed(2)} hrs` : "In progress"]
+  ];
+
+  const grid = document.createElement("div");
+  grid.className = "selected-dtr-grid";
+
+  rows.forEach(([label, value]) => {
+    const item = document.createElement("div");
+    const small = document.createElement("small");
+    small.textContent = label;
+    const strong = document.createElement("strong");
+    strong.textContent = value;
+    item.append(small, strong);
+    grid.append(item);
+  });
+
+  box.append(grid);
+}
+
 function renderSelectedActivities() {
   elements.selectedActivities.replaceChildren();
+  renderSelectedDtr();
 
   elements.selectedDateTitle.textContent =
     formatDate(selectedDate);
@@ -358,6 +420,15 @@ requireAuth(async user => {
 
     groupActivities();
     renderStatistics();
+
+    // DTR records for the calendar. If this fails the task calendar still works.
+    try {
+      const records = await fetchRecords(user.uid);
+      dtrByDate = Object.fromEntries(records.map(r => [r.date, r]));
+    } catch (dtrError) {
+      console.warn("DTR records not loaded for the calendar:", dtrError.code || dtrError.message);
+      dtrByDate = {};
+    }
 
     // Select latest recorded date if today has no activities.
     const dates = Object.keys(dailyActivities).sort().reverse();

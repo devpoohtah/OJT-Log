@@ -172,10 +172,13 @@ form.addEventListener("submit", async event => {
   message.textContent = "Saving daily log...";
 
   try {
+    const knowledge = document.getElementById("dayKnowledge").value.trim();
+
     await addDoc(collection(db, "dailyLogs"), {
       userId: currentUser.uid,
       date,
       activities,
+      ...(knowledge ? { knowledge } : {}),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });

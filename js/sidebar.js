@@ -1,6 +1,8 @@
 import { auth } from "./firebase-config.js";
 import { requireAuth } from "./auth.js";
-import { loadProfile, saveProfile } from "./profile.js";
+import { loadProfile, saveProfile, saveSignature } from "./profile.js";
+import { processSignature } from "./signature.js";
+import { addDateHints, formatDateWithWeekday } from "./format.js";
 import { updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { ICONS, makeThemeButton } from "./icons.js";
 
@@ -10,7 +12,7 @@ import { ICONS, makeThemeButton } from "./icons.js";
 const sidebar = document.querySelector(".sidebar");
 const brand = sidebar?.querySelector("h2");
 
-let profile = { company: "", department: "" };
+let profile = { company: "", department: "", signature: "" };
 
 const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2)
   .map(word => word[0].toUpperCase()).join("");
@@ -32,7 +34,7 @@ function buildUserCard() {
 
   text.append(name, sub);
   card.append(avatar, text);
-  brand.insertAdjacentElement("afterend", card);
+  (sidebar.querySelector(".sidebar-date") || brand).insertAdjacentElement("afterend", card);
 
   return { card, avatar, name, sub };
 }
@@ -83,6 +85,80 @@ function openProfileModal(user, ui, { required }) {
     value: profile.department, placeholder: "Optional"
   });
 
+  // ----- signature (optional): stored as a small PNG string in the profile -----
+  let signatureValue = profile.signature || "";
+  let signatureChanged = false;
+
+  const sigBox = document.createElement("div");
+  sigBox.className = "signature-box";
+
+  const sigPreview = document.createElement("img");
+  sigPreview.className = "signature-preview";
+  sigPreview.alt = "Your signature";
+
+  const sigEmpty = document.createElement("span");
+  sigEmpty.className = "signature-empty muted";
+  sigEmpty.textContent = "No signature uploaded";
+
+  const sigFile = document.createElement("input");
+  sigFile.type = "file";
+  sigFile.accept = "image/png,image/jpeg,image/webp";
+  sigFile.hidden = true;
+
+  const sigUpload = document.createElement("button");
+  sigUpload.type = "button";
+  sigUpload.className = "small-btn";
+
+  const sigRemove = document.createElement("button");
+  sigRemove.type = "button";
+  sigRemove.className = "small-btn delete-btn";
+  sigRemove.textContent = "Remove";
+
+  const sigNote = document.createElement("small");
+  sigNote.className = "muted";
+  sigNote.textContent =
+    "Use a clear photo of your signature in dark pen on white paper. " +
+    "The white background is removed automatically.";
+
+  const sigError = document.createElement("p");
+  sigError.className = "message";
+
+  const renderSignature = () => {
+    sigPreview.hidden = !signatureValue;
+    sigEmpty.hidden = Boolean(signatureValue);
+    sigRemove.hidden = !signatureValue;
+    sigUpload.textContent = signatureValue ? "Replace" : "Upload";
+    if (signatureValue) sigPreview.src = signatureValue;
+  };
+
+  sigUpload.addEventListener("click", () => sigFile.click());
+  sigRemove.addEventListener("click", () => {
+    signatureValue = "";
+    signatureChanged = true;
+    sigError.textContent = "";
+    renderSignature();
+  });
+  sigFile.addEventListener("change", async () => {
+    const file = sigFile.files[0];
+    sigFile.value = "";
+    if (!file) return;
+    sigError.textContent = "Processing...";
+    try {
+      signatureValue = await processSignature(file);
+      signatureChanged = true;
+      sigError.textContent = "";
+      renderSignature();
+    } catch (err) {
+      sigError.textContent = err.message || "Couldn't use that image.";
+    }
+  });
+
+  const sigButtons = document.createElement("div");
+  sigButtons.className = "signature-buttons";
+  sigButtons.append(sigUpload, sigRemove);
+  sigBox.append(sigPreview, sigEmpty, sigButtons, sigFile);
+  renderSignature();
+
   const error = document.createElement("p");
   error.className = "message";
 
@@ -109,6 +185,8 @@ function openProfileModal(user, ui, { required }) {
     ...field("Name", nameInput),
     ...field("Company (optional)", companyInput),
     ...field("Department (optional)", deptInput),
+    ...field("Signature (optional)", sigBox),
+    sigNote, sigError,
     error, actions
   );
   overlay.append(box);
@@ -138,7 +216,8 @@ function openProfileModal(user, ui, { required }) {
     let profileSaved = true;
     try {
       await saveProfile(user.uid, { company, department });
-      profile = { company, department };
+      if (signatureChanged) await saveSignature(user.uid, signatureValue);
+      profile = { ...profile, company, department, signature: signatureValue };
     } catch (err) {
       console.error("Profile save failed:", err);
       profileSaved = false;
@@ -180,6 +259,14 @@ function setupSidebarChrome() {
   short.textContent = "OJT";
   full.classList.add("brand-full");
   brand.append(short);
+
+  // Today's date under the app name.
+  const today = document.createElement("p");
+  today.className = "sidebar-date";
+  const showToday = () => { today.textContent = formatDateWithWeekday(new Date()); };
+  showToday();
+  window.addEventListener("focus", showToday);        // refresh after midnight
+  brand.after(today);
 
   // Nav links: icon + label (the label hides when collapsed).
   sidebar.querySelectorAll("nav a").forEach(link => {
@@ -244,6 +331,9 @@ function setupSidebarChrome() {
 
 if (sidebar && brand) setupSidebarChrome();
 
+addDateHints();
+
+
 if (sidebar && brand) {
   const ui = buildUserCard();
 
@@ -253,6 +343,9 @@ if (sidebar && brand) {
     render(ui, auth.currentUser);
 
     if (!user.displayName) openProfileModal(user, ui, { required: true });
-    ui.card.onclick = () => openProfileModal(auth.currentUser, ui, { required: false });
+    ui.card.onclick = () => {
+      document.body.classList.remove("nav-open");          // close the phone drawer first
+      openProfileModal(auth.currentUser, ui, { required: false });
+    };
   });
 }

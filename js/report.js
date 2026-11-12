@@ -123,13 +123,65 @@ export function buildDays(from, to, rows) {
   return days;
 }
 
+// Knowledge/skills text per date (stored on the daily log). A day can have several
+// logs, so combine the distinct non-empty texts. Returns Map<"YYYY-MM-DD", text>.
+export function collectKnowledge(logs, from, to) {
+  const byDate = new Map();
+
+  logs
+    .filter(log => log.date && log.date >= from && log.date <= to)
+    .forEach(log => {
+      const text = (log.knowledge || "").trim();
+      if (!text) return;
+      const list = byDate.get(log.date) || [];
+      if (!list.includes(text)) list.push(text);
+      byDate.set(log.date, list);
+    });
+
+  return new Map([...byDate].map(([date, list]) => [date, list.join("\n")]));
+}
+
+// Hours worked in [from, to] from DTR records (net of break). Records are dated by
+// the day the shift started. Returns 0 when there is nothing to add up.
+export function sumHours(records, from, to) {
+  const minutes = (records || [])
+    .filter(r => r.date >= from && r.date <= to && Number(r.totalMinutes) > 0)
+    .reduce((sum, r) => sum + Number(r.totalMinutes), 0);
+
+  return minutes / 60;
+}
+
 // ---------- PDF ----------
 
-// data: { from, to, rows, name, company, department }
+// Space the signature block needs under the table (mm).
+const SIGNATURE_BLOCK = 30;
+
+// Smaller and smaller layouts to try until the report fits on a single page.
+const FIT_SCALES = [1, 0.95, 0.9, 0.85, 0.8, 0.75];
+
+// data: { from, to, rows, name, company, department, knowledge, hours, signature }
 // A4 landscape, laid out like the school's Weekly Accomplishment Report form.
 export function buildReportPdf(JsPDF, data, autoTableFn) {
-  const { from, to, rows, name, company, department } = data;
-  const doc = new JsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+  const make = () => new JsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+
+  // Try the normal layout first, then shrink step by step until everything
+  // (table + signatures) fits on one page. If even the smallest doesn't fit, use it
+  // anyway: the table then stops early on every page so the signatures always sit
+  // under the last rows instead of alone on their own page.
+  let chosen = FIT_SCALES[FIT_SCALES.length - 1];
+  for (const scale of FIT_SCALES) {
+    const trial = make();
+    drawReport(trial, data, scale, autoTableFn);
+    if (trial.getNumberOfPages() === 1) { chosen = scale; break; }
+  }
+
+  const doc = make();
+  drawReport(doc, data, chosen, autoTableFn);
+  return doc;
+}
+
+function drawReport(doc, data, scale, autoTableFn) {
+  const { from, to, rows, name, company, department, knowledge, hours, signature } = data;
   const margin = 15;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -137,31 +189,36 @@ export function buildReportPdf(JsPDF, data, autoTableFn) {
   const centerX = pageWidth / 2;
   const table = options => (autoTableFn ? autoTableFn(doc, options) : doc.autoTable(options));
 
+  // The heading shrinks a little less than the table text so it stays readable.
+  const hs = Math.max(scale, 0.85);
+  const hy = y => 10 + (y - 10) * hs;
+
   // --- heading ---
   doc.setTextColor(0);
   doc.setFont("times", "normal");
-  doc.setFontSize(20);
-  doc.text(REPORT_HEADER.school, centerX, 17, { align: "center" });
-  doc.setFontSize(12);
-  doc.text(REPORT_HEADER.network, centerX, 23, { align: "center" });
+  doc.setFontSize(20 * hs);
+  doc.text(REPORT_HEADER.school, centerX, hy(17), { align: "center" });
+  doc.setFontSize(12 * hs);
+  doc.text(REPORT_HEADER.network, centerX, hy(23), { align: "center" });
   doc.setFont("times", "bold");
-  doc.setFontSize(10);
-  doc.text(REPORT_HEADER.college, centerX, 29, { align: "center" });
+  doc.setFontSize(10 * hs);
+  doc.text(REPORT_HEADER.college, centerX, hy(29), { align: "center" });
   doc.setFont("times", "normal");
-  doc.text(REPORT_HEADER.program, centerX, 36, { align: "center" });
+  doc.text(REPORT_HEADER.program, centerX, hy(36), { align: "center" });
   doc.setFont("times", "bold");
-  doc.setFontSize(15);
-  doc.text(REPORT_HEADER.title, centerX, 43, { align: "center" });
+  doc.setFontSize(15 * hs);
+  doc.text(REPORT_HEADER.title, centerX, hy(43), { align: "center" });
 
   // --- info box: name / dates / company / accumulated hours ---
   const org = [company, department].map(v => (v || "").trim()).filter(Boolean).join(" / ");
   const leftWidth = Math.round(contentWidth * 0.64);
+  const hoursText = hours > 0 ? `${hours.toFixed(2)} hrs` : "";
 
-  const lineStyles = { lineColor: 0, lineWidth: 0.25, font: "times", fontSize: 9.5,
-                       textColor: 0, cellPadding: 1.8 };
+  const lineStyles = { lineColor: 0, lineWidth: 0.25, font: "times", fontSize: 9.5 * scale,
+                       textColor: 0, cellPadding: 1.8 * scale };
 
   table({
-    startY: 47,
+    startY: hy(47),
     margin: { left: margin, right: margin },
     theme: "plain",
     styles: lineStyles,
@@ -169,28 +226,30 @@ export function buildReportPdf(JsPDF, data, autoTableFn) {
     body: [
       [`NAME OF STUDENT-TRAINEE: ${(name || "").trim()}`,
        `INCLUSIVE DATES:  ${formatInclusive(from, to)}`],
-      [`COMPANY/DEPARTMENT: ${org}`, "ACCUMULATED HOURS:"]
+      [`COMPANY/DEPARTMENT: ${org}`, `ACCUMULATED HOURS: ${hoursText}`]
     ]
   });
 
   // --- main table: one row per day ---
   const days = buildDays(from, to, rows);
+  const notes = knowledge || new Map();
   const body = days.map(day => [
     `${formatDutyDate(day.date).split(", ").slice(1).join(", ")}\n${LONG_WEEKDAYS[parse(day.date).getDay()]}`,
     day.tasks.map(task => `\u2022 ${task}`).join("\n"),
-    ""
+    notes.get(day.date) || ""
   ]);
 
   table({
     startY: doc.lastAutoTable.finalY,
-    margin: { left: margin, right: margin, bottom: 12 },
+    // The bottom margin keeps the signature block's space free on every page.
+    margin: { left: margin, right: margin, bottom: SIGNATURE_BLOCK + 8 },
     theme: "grid",
     showHead: "everyPage",
     rowPageBreak: "avoid",
-    styles: { ...lineStyles, fontSize: 10, cellPadding: 2.6, valign: "top",
-              minCellHeight: 16, overflow: "linebreak" },
-    headStyles: { fillColor: 255, textColor: 0, fontStyle: "bold", fontSize: 11,
-                  halign: "center", valign: "middle", minCellHeight: 10 },
+    styles: { ...lineStyles, fontSize: 10 * scale, cellPadding: 2.6 * scale, valign: "top",
+              minCellHeight: 16 * scale, overflow: "linebreak" },
+    headStyles: { fillColor: 255, textColor: 0, fontStyle: "bold", fontSize: 11 * scale,
+                  halign: "center", valign: "middle", minCellHeight: 10 * scale },
     columnStyles: {
       0: { cellWidth: 36, halign: "center" },
       1: { cellWidth: Math.round(contentWidth * 0.46) },
@@ -200,16 +259,11 @@ export function buildReportPdf(JsPDF, data, autoTableFn) {
     body
   });
 
-  // --- signature block (kept together, moves to a new page if needed) ---
-  const blockHeight = 32;
-  let y = doc.lastAutoTable.finalY + 12;
-  if (y + blockHeight > pageHeight - 10) {
-    doc.addPage();
-    y = 22;
-  }
-
+  // --- signature block (always on the same page as the last table rows) ---
+  const y = doc.lastAutoTable.finalY + 8;
   const colRight = margin + contentWidth * 0.62;
   const lineLength = 85;
+  const lineY = y + 22;
 
   doc.setFont("times", "normal");
   doc.setFontSize(10);
@@ -217,15 +271,28 @@ export function buildReportPdf(JsPDF, data, autoTableFn) {
   doc.text("PREPARED BY:", margin + 2, y);
   doc.text("CERTIFIED CORRECT:", colRight, y);
 
-  const lineY = y + 17;
   doc.setLineWidth(0.25);
   doc.setDrawColor(0);
   doc.line(margin + 2, lineY, margin + 2 + lineLength, lineY);
   doc.line(colRight, lineY, colRight + lineLength, lineY);
 
+  // Signature image sits over the printed name.
+  if (signature) {
+    try {
+      const props = doc.getImageProperties(signature);
+      const ratio = Math.min(55 / props.width, 16 / props.height);
+      const w = props.width * ratio;
+      const h = props.height * ratio;
+      doc.addImage(signature, "PNG", margin + 2 + (lineLength - w) / 2, lineY - 4.5 - h, w, h);
+    } catch (err) {
+      console.warn("Could not place the signature image:", err);
+    }
+  }
+
   const printedName = (name || "").trim();
   if (printedName) {
     doc.setFont("times", "bold");
+    doc.setFontSize(10);
     doc.text(printedName, margin + 2 + lineLength / 2, lineY - 1.5, { align: "center" });
   }
 
@@ -244,8 +311,6 @@ export function buildReportPdf(JsPDF, data, autoTableFn) {
       doc.text(`Page ${i} of ${pages}`, pageWidth - margin, pageHeight - 6, { align: "right" });
     }
   }
-
-  return doc;
 }
 
 export const reportFileName = (from, to) =>
@@ -292,14 +357,15 @@ function loadPdfLibs() {
 
 // ---------- export modal on Task History ----------
 
-export function setupExport({ getLogs, getProfile }) {
+export function setupExport({ getLogs, getProfile, getRecords }) {
   const $ = id => document.getElementById(id);
   const el = {
     open: $("exportBtn"), modal: $("exportModal"), form: $("exportForm"),
     close: $("exportClose"), cancel: $("exportCancel"), submit: $("exportSubmit"),
     last: $("rangeLast"), custom: $("rangeCustom"), lastLabel: $("lastWeekLabel"),
     from: $("exportFrom"), to: $("exportTo"),
-    message: $("exportMessage")
+    message: $("exportMessage"),
+    sigRow: $("signatureRow"), sig: $("includeSignature")
   };
 
   if (Object.values(el).some(node => !node)) {
@@ -307,13 +373,22 @@ export function setupExport({ getLogs, getProfile }) {
     return;
   }
 
+  let profilePromise = null;
+  const loadProfileOnce = () => (profilePromise ||= Promise.resolve(getProfile()));
+
   const openModal = () => {
+    profilePromise = null;
     const week = lastWeekRange();
     el.lastLabel.textContent = formatRange(week.from, week.to);
     el.from.value = week.from;
     el.to.value = week.to;
     el.last.checked = true;
     el.message.textContent = "";
+    el.sigRow.hidden = true;
+    el.sig.checked = true;
+    loadProfileOnce()
+      .then(profile => { el.sigRow.hidden = !profile.signature; })
+      .catch(() => {});
     el.modal.hidden = false;
     document.body.classList.add("modal-open");
     el.last.focus();
@@ -364,8 +439,21 @@ export function setupExport({ getLogs, getProfile }) {
     el.submit.textContent = "Preparing...";
 
     try {
-      const [JsPDF, profile] = await Promise.all([loadPdfLibs(), getProfile()]);
-      const doc = buildReportPdf(JsPDF, { ...range, rows, ...profile });
+      const [JsPDF, profile, records] = await Promise.all([
+        loadPdfLibs(),
+        loadProfileOnce(),
+        // Accumulated hours are optional: if the DTR can't be read, leave the field blank.
+        Promise.resolve(getRecords ? getRecords() : []).catch(() => [])
+      ]);
+
+      const doc = buildReportPdf(JsPDF, {
+        ...range,
+        rows,
+        ...profile,
+        signature: el.sig.checked ? profile.signature : "",
+        knowledge: collectKnowledge(getLogs(), range.from, range.to),
+        hours: sumHours(records, range.from, range.to)
+      });
       doc.save(reportFileName(range.from, range.to));
       closeModal();
     } catch (err) {

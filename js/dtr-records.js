@@ -1,5 +1,6 @@
 import { requireAuth, setupLogout } from "./auth.js";
 import { loadProfile } from "./profile.js";
+import { formatDate, formatMonthYear } from "./format.js";
 import {
   DEFAULT_BREAK, localDateString, parseDate, addDays, daysBetween, formatShortDate,
   format12h, toHours, isNextDay, workedMinutes, timeOutLabel, timeOutDateOf,
@@ -10,7 +11,6 @@ setupLogout();
 
 const $ = id => document.getElementById(id);
 const el = {
-  addBtn: $("addBtn"),
   modal: $("recordModal"), modalTitle: $("recordModalTitle"),
   form: $("recordForm"), close: $("recordClose"), cancel: $("recordCancel"),
   rDate: $("rDate"), rIn: $("rIn"), rOutDate: $("rOutDate"), rOut: $("rOut"),
@@ -62,7 +62,7 @@ function getFilteredRecords() {
     .filter(r => {
       if (!term) return true;
       return [
-        r.date, weekday(r.date, "long"), format12h(r.timeIn),
+        r.date, formatDate(r.date), weekday(r.date, "long"), format12h(r.timeIn),
         timeOutText(r), hoursText(r)
       ].join(" ").toLowerCase().includes(term);
     });
@@ -81,7 +81,7 @@ function setPrintProfile({ name, company, department }) {
 function setPrintPeriod() {
   const value = el.monthFilter.value;
   el.printPeriod.textContent = value
-    ? parseDate(`${value}-01`).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+    ? formatMonthYear(value)
     : "All records";
 }
 
@@ -128,7 +128,7 @@ function renderTable() {
     const tr = document.createElement("tr");
 
     tr.append(
-      createCell(record.date),
+      createCell(formatDate(record.date), "date-cell"),
       createCell(weekday(record.date)),
       createCell(format12h(record.timeIn)),
       createCell(timeOutText(record)),
@@ -198,7 +198,7 @@ el.monthFilter.addEventListener("change", () => {
 // =====================================
 
 async function removeRecord(record, button) {
-  if (!confirm(`Delete the DTR record for ${record.date}?`)) return;
+  if (!confirm(`Delete the DTR record for ${formatDate(record.date)}?`)) return;
 
   button.disabled = true;
   try {
@@ -294,7 +294,6 @@ el.rOutDate.addEventListener("input", () => {
 });
 el.rBreak.addEventListener("input", updatePreview);
 
-el.addBtn.addEventListener("click", () => openModal());
 el.close.addEventListener("click", closeModal);
 el.cancel.addEventListener("click", closeModal);
 el.modal.addEventListener("click", event => {
@@ -328,7 +327,7 @@ el.form.addEventListener("submit", async event => {
   }
 
   const replacing = records.some(r => r.date === entry.date) && entry.date !== editingDate;
-  if (replacing && !confirm(`A record for ${entry.date} already exists. Replace it?`)) {
+  if (replacing && !confirm(`A record for ${formatDate(entry.date)} already exists. Replace it?`)) {
     return;
   }
 

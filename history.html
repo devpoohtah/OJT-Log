@@ -51,7 +51,7 @@
       >
 
       <div class="table-container">
-        <table class="history-table">
+        <table class="history-table task-table">
 
           <thead>
             <tr>
@@ -145,6 +145,13 @@
         <option value="Other">Other</option>
       </select>
 
+      <label for="editKnowledge">Knowledge/Skills Acquired <span class="muted">(whole day, optional)</span></label>
+      <textarea
+        id="editKnowledge"
+        rows="3"
+        placeholder="What did you learn on this day?"
+      ></textarea>
+
       <p id="editMessage" class="form-message"></p>
 
       <div class="modal-actions">
@@ -200,6 +207,14 @@
           <input type="date" id="exportTo">
         </div>
       </div>
+
+      <label class="option-row" id="signatureRow" for="includeSignature" hidden>
+        <input type="checkbox" id="includeSignature" checked>
+        <span>
+          <strong>Include my signature</strong>
+          <small class="muted">Placed over your printed name.</small>
+        </span>
+      </label>
 
       <p id="exportMessage" class="form-message" role="status"></p>
 

@@ -1,5 +1,6 @@
 import { requireAuth, setupLogout } from "./auth.js";
 import { loadProfile, saveRequiredHours } from "./profile.js";
+import { formatDate } from "./format.js";
 import {
   DEFAULT_BREAK, localDateString, localTimeString, addDays, daysBetween,
   formatLongDate, formatShortDate, format12h, toHours, isNextDay, workedMinutes,
@@ -83,7 +84,7 @@ el.timeOutBtn.addEventListener("click", async () => {
 
   if (offset < 0 || offset > 1) {
     el.todayMessage.textContent =
-      `The shift from ${open.date} was never closed. Enter its Time Out in the form below.`;
+      `The shift from ${formatDate(open.date)} was never closed. Enter its Time Out in the form below.`;
     startEdit(open);
     return;
   }
@@ -174,7 +175,7 @@ function startEdit(record) {
   el.mOutDate.value = record.timeOut ? timeOutDateOf(record) : record.date;
   outDateTouched = el.mOutDate.value !== defaultOutDate();   // keep unusual dates
 
-  el.manualTitle.textContent = `Editing ${record.date}`;
+  el.manualTitle.textContent = `Editing ${formatDate(record.date)}`;
   el.cancelEdit.hidden = false;
   updatePreview();
   el.manualForm.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -220,7 +221,7 @@ el.manualForm.addEventListener("submit", async event => {
   }
 
   const replacing = records.some(r => r.date === entry.date) && entry.date !== editingDate;
-  if (replacing && !confirm(`A record for ${entry.date} already exists. Replace it?`)) {
+  if (replacing && !confirm(`A record for ${formatDate(entry.date)} already exists. Replace it?`)) {
     return;
   }
 
