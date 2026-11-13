@@ -159,7 +159,8 @@ const SIGNATURE_BLOCK = 30;
 // Smaller and smaller layouts to try until the report fits on a single page.
 const FIT_SCALES = [1, 0.95, 0.9, 0.85, 0.8, 0.75];
 
-// data: { from, to, rows, name, company, department, knowledge, hours, signature }
+// data: { from, to, rows, name, company, department, supervisor, knowledge, hours,
+//         signature, supervisorSignature }
 // A4 landscape, laid out like the school's Weekly Accomplishment Report form.
 export function buildReportPdf(JsPDF, data, autoTableFn) {
   const make = () => new JsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
@@ -181,7 +182,10 @@ export function buildReportPdf(JsPDF, data, autoTableFn) {
 }
 
 function drawReport(doc, data, scale, autoTableFn) {
-  const { from, to, rows, name, company, department, knowledge, hours, signature } = data;
+  const {
+    from, to, rows, name, company, department, supervisor, knowledge, hours,
+    signature, supervisorSignature
+  } = data;
   const margin = 15;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -276,25 +280,36 @@ function drawReport(doc, data, scale, autoTableFn) {
   doc.line(margin + 2, lineY, margin + 2 + lineLength, lineY);
   doc.line(colRight, lineY, colRight + lineLength, lineY);
 
-  // Signature image sits over the printed name.
-  if (signature) {
-    try {
-      const props = doc.getImageProperties(signature);
-      const ratio = Math.min(55 / props.width, 16 / props.height);
-      const w = props.width * ratio;
-      const h = props.height * ratio;
-      doc.addImage(signature, "PNG", margin + 2 + (lineLength - w) / 2, lineY - 4.5 - h, w, h);
-    } catch (err) {
-      console.warn("Could not place the signature image:", err);
+  // Signature image sits over the printed name; the name is centered on the line and
+  // shrinks a little if it is too long to fit.
+  const drawSignatory = (x, image, printedName) => {
+    if (image) {
+      try {
+        const props = doc.getImageProperties(image);
+        const ratio = Math.min(55 / props.width, 16 / props.height);
+        const w = props.width * ratio;
+        const h = props.height * ratio;
+        doc.addImage(image, "PNG", x + (lineLength - w) / 2, lineY - 4.5 - h, w, h);
+      } catch (err) {
+        console.warn("Could not place the signature image:", err);
+      }
     }
-  }
 
-  const printedName = (name || "").trim();
-  if (printedName) {
+    const text = (printedName || "").trim();
+    if (!text) return;
+
+    let size = 10;
     doc.setFont("times", "bold");
-    doc.setFontSize(10);
-    doc.text(printedName, margin + 2 + lineLength / 2, lineY - 1.5, { align: "center" });
-  }
+    doc.setFontSize(size);
+    while (size > 7 && doc.getTextWidth(text) > lineLength) {
+      size -= 0.5;
+      doc.setFontSize(size);
+    }
+    doc.text(text, x + lineLength / 2, lineY - 1.5, { align: "center" });
+  };
+
+  drawSignatory(margin + 2, signature, name);
+  drawSignatory(colRight, supervisorSignature, supervisor);
 
   doc.setFont("times", "normal");
   doc.setFontSize(9);
@@ -357,15 +372,19 @@ function loadPdfLibs() {
 
 // ---------- export modal on Task History ----------
 
-export function setupExport({ getLogs, getProfile, getRecords }) {
+export function setupExport({ getLogs, getProfile, getRecords, saveKnowledge }) {
   const $ = id => document.getElementById(id);
   const el = {
     open: $("exportBtn"), modal: $("exportModal"), form: $("exportForm"),
     close: $("exportClose"), cancel: $("exportCancel"), submit: $("exportSubmit"),
+    back: $("exportBack"), skip: $("exportSkip"), subtitle: $("exportSubtitle"),
     last: $("rangeLast"), custom: $("rangeCustom"), lastLabel: $("lastWeekLabel"),
     from: $("exportFrom"), to: $("exportTo"),
     message: $("exportMessage"),
-    sigRow: $("signatureRow"), sig: $("includeSignature")
+    sigRow: $("signatureRow"), sig: $("includeSignature"),
+    supRow: $("supervisorSignatureRow"), supSig: $("includeSupervisorSignature"),
+    stepRange: $("exportStepRange"), stepKnowledge: $("exportStepKnowledge"),
+    knowledgeSummary: $("knowledgeSummary"), knowledgeList: $("knowledgeList")
   };
 
   if (Object.values(el).some(node => !node)) {
@@ -373,8 +392,40 @@ export function setupExport({ getLogs, getProfile, getRecords }) {
     return;
   }
 
+  const SUBTITLES = {
+    range: "Download your accomplishments as a PDF.",
+    knowledge: "Check what you learned each day before downloading."
+  };
+
   let profilePromise = null;
   const loadProfileOnce = () => (profilePromise ||= Promise.resolve(getProfile()));
+
+  let step = "range";      // "range" -> "knowledge"
+  let busy = false;
+  let range = null;        // the range chosen in step 1
+
+  // Buttons and texts for the current step.
+  const renderStep = () => {
+    const onKnowledge = step === "knowledge";
+    el.stepRange.hidden = onKnowledge;
+    el.stepKnowledge.hidden = !onKnowledge;
+    el.back.hidden = !onKnowledge;
+    el.skip.hidden = !onKnowledge;
+    el.subtitle.textContent = SUBTITLES[step];
+    el.submit.textContent = busy ? "Preparing..." : (onKnowledge ? "Download PDF" : "Next");
+    [el.submit, el.back, el.skip, el.cancel].forEach(btn => { btn.disabled = busy; });
+  };
+
+  const setStep = next => {
+    step = next;
+    el.message.textContent = "";
+    renderStep();
+  };
+
+  const setBusy = value => {
+    busy = value;
+    renderStep();
+  };
 
   const openModal = () => {
     profilePromise = null;
@@ -383,11 +434,18 @@ export function setupExport({ getLogs, getProfile, getRecords }) {
     el.from.value = week.from;
     el.to.value = week.to;
     el.last.checked = true;
-    el.message.textContent = "";
     el.sigRow.hidden = true;
     el.sig.checked = true;
+    el.supRow.hidden = true;
+    el.supSig.checked = true;
+    busy = false;
+    range = null;
+    setStep("range");
     loadProfileOnce()
-      .then(profile => { el.sigRow.hidden = !profile.signature; })
+      .then(profile => {
+        el.sigRow.hidden = !profile.signature;
+        el.supRow.hidden = !profile.supervisorSignature;
+      })
       .catch(() => {});
     el.modal.hidden = false;
     document.body.classList.add("modal-open");
@@ -399,46 +457,109 @@ export function setupExport({ getLogs, getProfile, getRecords }) {
     document.body.classList.remove("modal-open");
   };
 
+  const guardedClose = () => { if (!busy) closeModal(); };
+
   el.open.addEventListener("click", openModal);
-  el.close.addEventListener("click", closeModal);
-  el.cancel.addEventListener("click", closeModal);
-  el.modal.addEventListener("click", event => { if (event.target === el.modal) closeModal(); });
+  el.close.addEventListener("click", guardedClose);
+  el.cancel.addEventListener("click", guardedClose);
+  el.modal.addEventListener("click", event => { if (event.target === el.modal) guardedClose(); });
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && !el.modal.hidden) closeModal();
+    if (event.key === "Escape" && !el.modal.hidden) guardedClose();
   });
 
   // Touching a date picker selects "Custom range" automatically.
   [el.from, el.to].forEach(input =>
     input.addEventListener("focus", () => { el.custom.checked = true; }));
 
-  el.form.addEventListener("submit", async event => {
-    event.preventDefault();
-    el.message.textContent = "";
-
-    const range = el.custom.checked
+  // Step 1 -> the chosen range, or null (with a message) when it is not usable.
+  const readRange = () => {
+    const chosen = el.custom.checked
       ? { from: el.from.value, to: el.to.value }
       : lastWeekRange();
 
-    if (!range.from || !range.to) {
+    if (!chosen.from || !chosen.to) {
       el.message.textContent = "Pick both a start and an end date.";
-      return;
+      return null;
     }
-    if (range.from > range.to) {
+    if (chosen.from > chosen.to) {
       el.message.textContent = "The start date must be on or before the end date.";
-      return;
+      return null;
     }
-
-    const rows = collectActivities(getLogs(), range.from, range.to);
-    if (!rows.length) {
-      el.message.textContent =
-        `No tasks found for ${formatRange(range.from, range.to)}.`;
-      return;
+    if (!collectActivities(getLogs(), chosen.from, chosen.to).length) {
+      el.message.textContent = `No tasks found for ${formatRange(chosen.from, chosen.to)}.`;
+      return null;
     }
+    return chosen;
+  };
 
-    el.submit.disabled = true;
-    el.submit.textContent = "Preparing...";
+  // Step 2: one box per day that has a daily log in the range, pre-filled with the saved text.
+  const buildKnowledgeList = chosen => {
+    const logs = getLogs();
+    const saved = collectKnowledge(logs, chosen.from, chosen.to);
+    const dates = [...new Set(
+      logs.filter(log => log.date && log.date >= chosen.from && log.date <= chosen.to)
+          .map(log => log.date)
+    )].sort();
+
+    el.knowledgeList.replaceChildren();
+    let empty = 0;
+
+    dates.forEach(date => {
+      const text = saved.get(date) || "";
+      if (!text) empty++;
+
+      const wrap = document.createElement("div");
+      wrap.className = "knowledge-day";
+
+      const label = document.createElement("label");
+      label.htmlFor = `knowledge-${date}`;
+      label.textContent = formatDutyDate(date);
+
+      const box = document.createElement("textarea");
+      box.id = `knowledge-${date}`;
+      box.rows = 3;
+      box.value = text;
+      box.placeholder = "What did you learn on this day?";
+      box.dataset.date = date;
+      box.dataset.initial = text;
+
+      wrap.append(label, box);
+      el.knowledgeList.append(wrap);
+    });
+
+    const days = `${dates.length} day${dates.length === 1 ? "" : "s"}`;
+    el.knowledgeSummary.textContent = empty
+      ? `${formatRange(chosen.from, chosen.to)} \u00B7 ${days}, ${empty} without Knowledge/Skills yet.`
+      : `${formatRange(chosen.from, chosen.to)} \u00B7 ${days}, all filled in.`;
+
+    return el.knowledgeList.querySelector("textarea");
+  };
+
+  // Save the boxes that changed, then build and download the PDF.
+  // saveEdits = false is the Skip button: use whatever is already saved.
+  const finish = async saveEdits => {
+    el.message.textContent = "";
+    setBusy(true);
 
     try {
+      if (saveEdits) {
+        const changed = [...el.knowledgeList.querySelectorAll("textarea")]
+          .filter(box => box.value.trim() !== box.dataset.initial.trim());
+        try {
+          for (const box of changed) {
+            await saveKnowledge(box.dataset.date, box.value.trim());
+            box.dataset.initial = box.value.trim();     // saved: don't write it twice on retry
+          }
+        } catch (err) {
+          console.error("Saving Knowledge/Skills failed:", err);
+          el.message.textContent =
+            "Couldn't save the Knowledge/Skills. Check your connection and try again.";
+          return;
+        }
+      }
+
+      const rows = collectActivities(getLogs(), range.from, range.to);
+
       const [JsPDF, profile, records] = await Promise.all([
         loadPdfLibs(),
         loadProfileOnce(),
@@ -451,18 +572,39 @@ export function setupExport({ getLogs, getProfile, getRecords }) {
         rows,
         ...profile,
         signature: el.sig.checked ? profile.signature : "",
+        supervisorSignature: el.supSig.checked ? profile.supervisorSignature : "",
         knowledge: collectKnowledge(getLogs(), range.from, range.to),
         hours: sumHours(records, range.from, range.to)
       });
       doc.save(reportFileName(range.from, range.to));
+      busy = false;
       closeModal();
     } catch (err) {
       console.error("PDF export failed:", err);
       el.message.textContent =
         "Couldn't create the PDF. Check your internet connection and try again.";
     } finally {
-      el.submit.disabled = false;
-      el.submit.textContent = "Download PDF";
+      setBusy(false);
     }
+  };
+
+  el.form.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (busy) return;
+
+    if (step === "range") {
+      const chosen = readRange();
+      if (!chosen) return;
+      range = chosen;
+      const firstBox = buildKnowledgeList(chosen);
+      setStep("knowledge");
+      firstBox?.focus();
+      return;
+    }
+
+    await finish(true);
   });
+
+  el.back.addEventListener("click", () => { if (!busy) setStep("range"); });
+  el.skip.addEventListener("click", () => { if (!busy) finish(false); });
 }

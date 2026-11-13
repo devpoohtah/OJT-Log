@@ -1,18 +1,25 @@
 import { auth } from "./firebase-config.js";
 import { requireAuth } from "./auth.js";
-import { loadProfile, saveProfile, saveSignature, saveColorTheme } from "./profile.js";
+import {
+  loadProfile, saveProfile, saveSignature, saveSupervisorSignature, saveColorTheme
+} from "./profile.js";
 import { processSignature } from "./signature.js";
 import { addDateHints, formatDateWithWeekday } from "./format.js";
 import { updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { ICONS, makeThemeButton } from "./icons.js";
 
-// Sidebar user card: name (Firebase Auth displayName) + optional company/department
+// Sidebar user card: name (Firebase Auth displayName) + optional company/department/supervisor
 // (Firestore /profiles/{uid}). Fires "profile:updated" on window after a save.
+// The gear button beside the app name opens Settings (color theme).
 
 const sidebar = document.querySelector(".sidebar");
 const brand = sidebar?.querySelector("h2");
 
-let profile = { company: "", department: "", signature: "", colorTheme: "" };
+let profile = {
+  company: "", department: "", supervisor: "", signature: "", supervisorSignature: "", colorTheme: ""
+};
+
+let settingsButton = null;      // gear button beside the app name (see setupSidebarChrome)
 
 const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2)
   .map(word => word[0].toUpperCase()).join("");
@@ -65,16 +72,112 @@ function textInput({ value = "", placeholder = "", required = false }) {
   return input;
 }
 
+// ---------------------------------------------------------------------------
+// Signature upload box (used for the student's and the supervisor's signature).
+// Returns the box, a hint line and an error line, plus live accessors for the result.
+// ---------------------------------------------------------------------------
+function createSignatureField({ initial = "", alt, hint }) {
+  let value = initial;
+  let changed = false;
+
+  const box = document.createElement("div");
+  box.className = "signature-box";
+
+  const preview = document.createElement("img");
+  preview.className = "signature-preview";
+  preview.alt = alt;
+
+  const empty = document.createElement("span");
+  empty.className = "signature-empty muted";
+  empty.textContent = "No signature uploaded";
+
+  const file = document.createElement("input");
+  file.type = "file";
+  file.accept = "image/png,image/jpeg,image/webp";
+  file.hidden = true;
+
+  const upload = document.createElement("button");
+  upload.type = "button";
+  upload.className = "small-btn";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "small-btn delete-btn";
+  remove.textContent = "Remove";
+
+  const note = document.createElement("small");
+  note.className = "muted";
+  note.textContent = hint;
+
+  const error = document.createElement("p");
+  error.className = "message";
+
+  const render = () => {
+    preview.hidden = !value;
+    empty.hidden = Boolean(value);
+    remove.hidden = !value;
+    upload.textContent = value ? "Replace" : "Upload";
+    if (value) preview.src = value;
+  };
+
+  upload.addEventListener("click", () => file.click());
+  remove.addEventListener("click", () => {
+    value = "";
+    changed = true;
+    error.textContent = "";
+    render();
+  });
+  file.addEventListener("change", async () => {
+    const picked = file.files[0];
+    file.value = "";
+    if (!picked) return;
+    error.textContent = "Processing...";
+    try {
+      value = await processSignature(picked);
+      changed = true;
+      error.textContent = "";
+      render();
+    } catch (err) {
+      error.textContent = err.message || "Couldn't use that image.";
+    }
+  });
+
+  const buttons = document.createElement("div");
+  buttons.className = "signature-buttons";
+  buttons.append(upload, remove);
+  box.append(preview, empty, buttons, file);
+  render();
+
+  return {
+    box, note, error,
+    get value() { return value; },
+    get changed() { return changed; }
+  };
+}
+
+function profileColumn(heading, children) {
+  const col = document.createElement("div");
+  col.className = "profile-col";
+  const title = document.createElement("h3");
+  title.textContent = heading;
+  col.append(title, ...children);
+  return col;
+}
+
+// ---------------------------------------------------------------------------
+// Profile popup: two columns, student on the left, supervisor on the right.
+// ---------------------------------------------------------------------------
 function openProfileModal(user, ui, { required }) {
   const overlay = document.createElement("div");
   overlay.className = "name-modal-overlay";
 
   const box = document.createElement("form");
-  box.className = "name-modal";
+  box.className = "name-modal profile-modal";
 
   const title = document.createElement("h2");
   title.textContent = required ? "Welcome! Set up your profile" : "Edit profile";
 
+  // ----- student column -----
   const nameInput = textInput({
     value: user.displayName || "", placeholder: "e.g. Juan Dela Cruz", required: true
   });
@@ -84,83 +187,136 @@ function openProfileModal(user, ui, { required }) {
   const deptInput = textInput({
     value: profile.department, placeholder: "Optional"
   });
-
-  // ----- signature (optional): stored as a small PNG string in the profile -----
-  let signatureValue = profile.signature || "";
-  let signatureChanged = false;
-
-  const sigBox = document.createElement("div");
-  sigBox.className = "signature-box";
-
-  const sigPreview = document.createElement("img");
-  sigPreview.className = "signature-preview";
-  sigPreview.alt = "Your signature";
-
-  const sigEmpty = document.createElement("span");
-  sigEmpty.className = "signature-empty muted";
-  sigEmpty.textContent = "No signature uploaded";
-
-  const sigFile = document.createElement("input");
-  sigFile.type = "file";
-  sigFile.accept = "image/png,image/jpeg,image/webp";
-  sigFile.hidden = true;
-
-  const sigUpload = document.createElement("button");
-  sigUpload.type = "button";
-  sigUpload.className = "small-btn";
-
-  const sigRemove = document.createElement("button");
-  sigRemove.type = "button";
-  sigRemove.className = "small-btn delete-btn";
-  sigRemove.textContent = "Remove";
-
-  const sigNote = document.createElement("small");
-  sigNote.className = "muted";
-  sigNote.textContent =
-    "Use a clear photo of your signature in dark pen on white paper. " +
-    "The white background is removed automatically.";
-
-  const sigError = document.createElement("p");
-  sigError.className = "message";
-
-  const renderSignature = () => {
-    sigPreview.hidden = !signatureValue;
-    sigEmpty.hidden = Boolean(signatureValue);
-    sigRemove.hidden = !signatureValue;
-    sigUpload.textContent = signatureValue ? "Replace" : "Upload";
-    if (signatureValue) sigPreview.src = signatureValue;
-  };
-
-  sigUpload.addEventListener("click", () => sigFile.click());
-  sigRemove.addEventListener("click", () => {
-    signatureValue = "";
-    signatureChanged = true;
-    sigError.textContent = "";
-    renderSignature();
+  const studentSig = createSignatureField({
+    initial: profile.signature || "",
+    alt: "Your signature",
+    hint: "Use a clear photo of your signature in dark pen on white paper. " +
+          "The white background is removed automatically."
   });
-  sigFile.addEventListener("change", async () => {
-    const file = sigFile.files[0];
-    sigFile.value = "";
-    if (!file) return;
-    sigError.textContent = "Processing...";
+
+  // ----- supervisor column (everything optional) -----
+  const supervisorInput = textInput({
+    value: profile.supervisor, placeholder: "Optional"
+  });
+  const supervisorSig = createSignatureField({
+    initial: profile.supervisorSignature || "",
+    alt: "Supervisor's signature",
+    hint: "Optional. Only add this if your supervisor agreed to it. Otherwise leave it " +
+          "empty and have them sign the printed report."
+  });
+
+  const columns = document.createElement("div");
+  columns.className = "profile-cols";
+  columns.append(
+    profileColumn("Student", [
+      ...field("Name", nameInput),
+      ...field("Company (optional)", companyInput),
+      ...field("Department (optional)", deptInput),
+      ...field("Signature (optional)", studentSig.box),
+      studentSig.note, studentSig.error
+    ]),
+    profileColumn("Supervisor", [
+      ...field("Supervisor name (optional)", supervisorInput),
+      ...field("Supervisor signature (optional)", supervisorSig.box),
+      supervisorSig.note, supervisorSig.error
+    ])
+  );
+
+  const error = document.createElement("p");
+  error.className = "message";
+
+  const actions = document.createElement("div");
+  actions.className = "actions";
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.className = "btn primary";
+  save.textContent = "Save";
+
+  if (!required) {
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "btn secondary";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", () => overlay.remove());
+    actions.append(cancel);
+  }
+  actions.append(save);
+
+  box.append(title, columns, error, actions);
+  overlay.append(box);
+  document.body.append(overlay);
+  nameInput.focus();
+
+  box.addEventListener("submit", async event => {
+    event.preventDefault();
+
+    const name = nameInput.value.trim().replace(/\s+/g, " ");
+    const company = companyInput.value.trim();
+    const department = deptInput.value.trim();
+    const supervisor = supervisorInput.value.trim();
+    if (!name) return;
+
+    save.disabled = true;
+    error.textContent = "";
+
     try {
-      signatureValue = await processSignature(file);
-      signatureChanged = true;
-      sigError.textContent = "";
-      renderSignature();
+      await updateProfile(auth.currentUser, { displayName: name });
     } catch (err) {
-      sigError.textContent = err.message || "Couldn't use that image.";
+      console.error("Name update failed:", err);
+      error.textContent = "Could not save your name. Try again.";
+      save.disabled = false;
+      return;
+    }
+
+    let profileSaved = true;
+    try {
+      await saveProfile(user.uid, { company, department, supervisor });
+      if (studentSig.changed) await saveSignature(user.uid, studentSig.value);
+      if (supervisorSig.changed) await saveSupervisorSignature(user.uid, supervisorSig.value);
+      profile = {
+        ...profile, company, department, supervisor,
+        signature: studentSig.value,
+        supervisorSignature: supervisorSig.value
+      };
+    } catch (err) {
+      console.error("Profile save failed:", err);
+      profileSaved = false;
+    }
+
+    render(ui, auth.currentUser);
+    window.dispatchEvent(new CustomEvent("profile:updated", {
+      detail: { name, ...profile }
+    }));
+
+    if (profileSaved) {
+      overlay.remove();
+    } else {
+      error.textContent =
+        "Name saved, but the rest of your profile could not be saved. " +
+        "Check that the Firestore rules for /profiles are published.";
+      save.disabled = false;
     }
   });
+}
 
-  const sigButtons = document.createElement("div");
-  sigButtons.className = "signature-buttons";
-  sigButtons.append(sigUpload, sigRemove);
-  sigBox.append(sigPreview, sigEmpty, sigButtons, sigFile);
-  renderSignature();
-
-  // ----- color theme: previews instantly, kept only when Save is pressed -----
+// ---------------------------------------------------------------------------
+// Settings popup (gear button next to the app name): color theme.
+// A color previews instantly, is kept only when Save is pressed, and closing
+// the popup any other way puts the saved color back.
+// ---------------------------------------------------------------------------
+function openSettingsModal(user) {
   const Theme = window.OJTTheme;
+
+  const overlay = document.createElement("div");
+  overlay.className = "name-modal-overlay";
+
+  const box = document.createElement("form");
+  box.className = "name-modal settings-modal";
+
+  const title = document.createElement("h2");
+  title.textContent = "Settings";
+
   let committedColor = Theme ? Theme.getColor() : "classic";
   let pickedColor = committedColor;
 
@@ -200,94 +356,57 @@ function openProfileModal(user, ui, { required }) {
   });
   markPicked();
 
-  // Closing without saving puts the saved color back.
-  const closeModal = () => {
-    Theme?.previewColor(committedColor);
-    overlay.remove();
-  };
-
   const error = document.createElement("p");
   error.className = "message";
 
+  const close = () => {
+    Theme?.previewColor(committedColor);        // undo an unsaved preview
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  };
+  const onKey = event => { if (event.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  overlay.addEventListener("mousedown", event => { if (event.target === overlay) close(); });
+
   const actions = document.createElement("div");
   actions.className = "actions";
+
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "btn secondary";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", close);
 
   const save = document.createElement("button");
   save.type = "submit";
   save.className = "btn primary";
   save.textContent = "Save";
+  actions.append(cancel, save);
 
-  if (!required) {
-    const cancel = document.createElement("button");
-    cancel.type = "button";
-    cancel.className = "btn secondary";
-    cancel.textContent = "Cancel";
-    cancel.addEventListener("click", closeModal);
-    actions.append(cancel);
-  }
-  actions.append(save);
-
-  box.append(
-    title,
-    ...field("Name", nameInput),
-    ...field("Company (optional)", companyInput),
-    ...field("Department (optional)", deptInput),
-    ...field("Signature (optional)", sigBox),
-    sigNote, sigError,
-    ...(Theme ? field("Color theme", picker) : []),
-    error, actions
-  );
+  box.append(title, ...field("Color theme", picker), error, actions);
   overlay.append(box);
   document.body.append(overlay);
-  nameInput.focus();
 
   box.addEventListener("submit", async event => {
     event.preventDefault();
 
-    const name = nameInput.value.trim().replace(/\s+/g, " ");
-    const company = companyInput.value.trim();
-    const department = deptInput.value.trim();
-    if (!name) return;
-
-    save.disabled = true;
-    error.textContent = "";
-
-    try {
-      await updateProfile(auth.currentUser, { displayName: name });
-    } catch (err) {
-      console.error("Name update failed:", err);
-      error.textContent = "Could not save your name. Try again.";
-      save.disabled = false;
+    if (!Theme || pickedColor === committedColor) {
+      close();
       return;
     }
 
-    let profileSaved = true;
+    save.disabled = true;
+    error.textContent = "";
     try {
-      await saveProfile(user.uid, { company, department });
-      if (signatureChanged) await saveSignature(user.uid, signatureValue);
-      if (Theme && pickedColor !== committedColor) {
-        await saveColorTheme(user.uid, pickedColor);
-        Theme.setColor(pickedColor);            // also cached on this device
-        committedColor = pickedColor;
-      }
-      profile = { ...profile, company, department, signature: signatureValue,
-                  colorTheme: committedColor };
+      await saveColorTheme(user.uid, pickedColor);
+      Theme.setColor(pickedColor);              // also cached on this device
+      committedColor = pickedColor;
+      profile = { ...profile, colorTheme: committedColor };
+      close();
     } catch (err) {
-      console.error("Profile save failed:", err);
-      profileSaved = false;
-    }
-
-    render(ui, auth.currentUser);
-    window.dispatchEvent(new CustomEvent("profile:updated", {
-      detail: { name, ...profile }
-    }));
-
-    if (profileSaved) {
-      overlay.remove();               // the saved color is already applied
-    } else {
+      console.error("Color theme save failed:", err);
       error.textContent =
-        "Name saved, but company/department could not be saved. " +
-        "Check that the Firestore rules for /profiles are published.";
+        "Could not save the color theme. Check that the Firestore rules for /profiles are published.";
       save.disabled = false;
     }
   });
@@ -313,6 +432,15 @@ function setupSidebarChrome() {
   short.textContent = "OJT";
   full.classList.add("brand-full");
   brand.append(short);
+
+  // Gear button beside the app name: opens Settings (color theme).
+  settingsButton = document.createElement("button");
+  settingsButton.type = "button";
+  settingsButton.className = "settings-btn";
+  settingsButton.title = "Settings";
+  settingsButton.setAttribute("aria-label", "Open settings");
+  settingsButton.innerHTML = ICONS.settings;
+  brand.append(settingsButton);
 
   // Today's date under the app name.
   const today = document.createElement("p");
@@ -403,6 +531,10 @@ if (sidebar && brand) {
     }
 
     if (!user.displayName) openProfileModal(user, ui, { required: true });
+    settingsButton.onclick = () => {
+      document.body.classList.remove("nav-open");
+      openSettingsModal(auth.currentUser);
+    };
     ui.card.onclick = () => {
       document.body.classList.remove("nav-open");          // close the phone drawer first
       openProfileModal(auth.currentUser, ui, { required: false });

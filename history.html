@@ -177,12 +177,15 @@
     <div class="modal-heading">
       <div>
         <h2>Export Weekly Report</h2>
-        <p class="muted">Download your accomplishments as a PDF.</p>
+        <p class="muted" id="exportSubtitle">Download your accomplishments as a PDF.</p>
       </div>
       <button type="button" id="exportClose" class="modal-close" aria-label="Close">&times;</button>
     </div>
 
     <form id="exportForm">
+
+      <!-- Step 1: range and signatures -->
+      <div id="exportStepRange">
 
       <label class="option-row" for="rangeLast">
         <input type="radio" name="range" id="rangeLast" value="last" checked>
@@ -216,11 +219,30 @@
         </span>
       </label>
 
+      <label class="option-row" id="supervisorSignatureRow" for="includeSupervisorSignature" hidden>
+        <input type="checkbox" id="includeSupervisorSignature" checked>
+        <span>
+          <strong>Include my supervisor's signature</strong>
+          <small class="muted">Placed over the supervisor's printed name. Turn off if they sign by hand.</small>
+        </span>
+      </label>
+
+      </div>
+
+      <!-- Step 2: one Knowledge/Skills box per day in the chosen range -->
+      <div id="exportStepKnowledge" hidden>
+        <p class="muted" id="knowledgeSummary"></p>
+        <div id="knowledgeList" class="knowledge-list"></div>
+      </div>
+
       <p id="exportMessage" class="form-message" role="status"></p>
 
       <div class="modal-actions">
         <button type="button" id="exportCancel" class="btn secondary">Cancel</button>
-        <button type="submit" id="exportSubmit" class="btn primary">Download PDF</button>
+        <button type="button" id="exportBack" class="btn secondary" hidden>Back</button>
+        <button type="button" id="exportSkip" class="btn secondary" hidden
+                title="Download using the Knowledge/Skills already saved">Skip</button>
+        <button type="submit" id="exportSubmit" class="btn primary">Next</button>
       </div>
     </form>
 

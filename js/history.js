@@ -149,6 +149,16 @@ async function applyKnowledge(target, text) {
   writes.forEach(([log, value]) => { log.knowledge = value; });
 }
 
+// Used by the export popup: save the Knowledge/Skills text for one date. If the day has
+// several logs the text goes on the one that already holds it (else the first).
+async function saveDayKnowledge(date, text) {
+  const dayLogs = logs.filter(log => log.date === date);
+  if (!dayLogs.length) return;
+
+  const target = dayLogs.find(log => (log.knowledge || "").trim()) || dayLogs[0];
+  await applyKnowledge(target, text);
+}
+
 function getFilteredActivities() {
   const term = search.value.toLowerCase().trim();
 
@@ -544,13 +554,16 @@ async function deleteActivity(log, index, button) {
 setupExport({
   getLogs: () => logs,
   getRecords: () => fetchRecords(currentUser.uid),
+  saveKnowledge: saveDayKnowledge,
   getProfile: async () => {
     const profile = await loadProfile(currentUser.uid);
     return {
       name: currentUser.displayName || "",
       company: profile.company,
       department: profile.department,
-      signature: profile.signature
+      supervisor: profile.supervisor,
+      signature: profile.signature,
+      supervisorSignature: profile.supervisorSignature
     };
   }
 });

@@ -2467,3 +2467,83 @@ body.modal-open { overflow: hidden; }
   border: 2px solid var(--white);
   box-shadow: 0 0 0 1px var(--border);
 }
+
+/* =====================================
+   PROFILE POPUP (two columns) + SETTINGS (gear) + EXPORT STEP 2
+===================================== */
+
+/* Profile popup: student on the left, supervisor on the right; stacks on small screens. */
+.name-modal.profile-modal { max-width: 860px; }
+.name-modal.profile-modal h2 { margin: 0 0 16px; }
+
+.profile-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px;
+  margin-top: 6px;
+}
+
+.profile-col { min-width: 0; }
+
+.profile-col h3 {
+  margin: 0 0 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .profile-cols { grid-template-columns: 1fr; gap: 20px; }
+}
+
+/* Settings popup */
+.name-modal.settings-modal { max-width: 440px; }
+
+/* Gear button beside the app name in the sidebar */
+.sidebar h2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-btn {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--sidebar-text);
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.settings-btn:hover,
+.settings-btn:focus-visible { background: var(--sidebar-hover); color: white; }
+
+.settings-btn .icon { width: 18px; height: 18px; }
+
+/* Collapsed sidebar: short "OJT" on top, the gear underneath. */
+html.sidebar-collapsed .sidebar h2 { flex-direction: column; gap: 10px; }
+
+/* Export popup, step 2: one Knowledge/Skills box per day */
+#exportStepRange[hidden],
+#exportStepKnowledge[hidden],
+.modal-actions [hidden] { display: none; }
+
+.knowledge-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.knowledge-day label { display: block; margin: 0 0 5px; }
+.knowledge-day textarea { min-height: 64px; }
