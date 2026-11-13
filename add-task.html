@@ -16,7 +16,7 @@
     <h2><span>OJT Tracker</span></h2>
     <nav>
       <a href="dashboard.html">My Tasks</a>
-      <a class="active" href="add-task.html">Add New Task</a>
+      <a class="active" href="add-task.html">Add Daily Log</a>
       <a href="history.html">Task History</a>
       <a href="dtr.html">DTR</a>
       <a href="dtr-records.html">DTR History</a>
@@ -29,7 +29,7 @@
     <header>
       <div>
         <h1>Add Daily Log</h1>
-        <p class="muted">Record your internship activities for the day.</p>
+        <p class="muted">Record your internship tasks for the day.</p>
       </div>
     </header>
 
@@ -47,7 +47,7 @@
 
         <hr class="divider">
 
-        <h2>Activities Completed</h2>
+        <h2>Tasks Completed</h2>
         <p class="muted">Add all the tasks you accomplished during your duty.</p>
 
         <div id="taskContainer">
@@ -86,7 +86,7 @@
         </button>
 
         <div class="actions">
-          <a href="dashboard.html" class="btn secondary">Cancel</a>
+          <a href="dashboard.html" id="cancelLink" class="btn secondary">Cancel</a>
           <button type="submit" id="saveButton" class="btn primary">
             Save Daily Log
           </button>

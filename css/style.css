@@ -1194,8 +1194,8 @@ header {
 }
 
 .form-message {
-  color: #dc2626;
-  font-size: 12px;
+  color: var(--danger);          /* same error style as .message */
+  font-size: 13px;
   min-height: 16px;
   margin: 3px 0;
 }
@@ -2547,3 +2547,112 @@ html.sidebar-collapsed .sidebar h2 { flex-direction: column; gap: 10px; }
 
 .knowledge-day label { display: block; margin: 0 0 5px; }
 .knowledge-day textarea { min-height: 64px; }
+
+/* =====================================
+   LOADING BUTTONS, CONFIRM DIALOG, TOASTS (js/ui.js)
+===================================== */
+
+/* Destructive primary button (confirm dialog) */
+.btn.danger { background: #dc2626; color: #ffffff; }
+.btn.danger:hover { background: #b91c1c; }
+
+/* Spinner + text inside a button while its action runs */
+.is-loading,
+.is-loading:disabled { opacity: 0.85; cursor: progress; }
+
+.btn-spinner {
+  flex: 0 0 auto;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-spinner { animation-duration: 1.8s; }
+}
+
+/* Confirm dialog (sits above every other popup) */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.name-modal.confirm-dialog { max-width: 420px; }
+.confirm-dialog h2 { margin: 0 0 10px; font-size: 18px; }
+.confirm-dialog .confirm-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+  white-space: pre-line;
+}
+.confirm-dialog .confirm-error { margin: 12px 0 0; min-height: 0; }
+.confirm-dialog .actions { margin-top: 22px; }
+
+/* Toasts */
+.toast-stack {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 10001;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 40px));
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 10px;
+  background: var(--white);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
+  cursor: pointer;
+  animation: toast-in 0.2s ease-out;
+}
+
+.toast-icon { flex: 0 0 auto; margin-top: 1px; }
+.toast-text { min-width: 0; overflow-wrap: anywhere; }
+
+.toast-success { border-left-color: #16a34a; }
+.toast-success .toast-icon { color: #16a34a; }
+.toast-error { border-left-color: var(--danger); }
+.toast-error .toast-icon { color: var(--danger); }
+.toast-info { border-left-color: var(--brand); }
+.toast-info .toast-icon { color: var(--brand); }
+
+.toast-out { opacity: 0; transform: translateY(6px); transition: 0.2s; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 700px) {
+  .toast-stack { right: 12px; left: 12px; bottom: 12px; width: auto; }
+}
+
+@media print {
+  .toast-stack, .confirm-overlay { display: none !important; }
+}

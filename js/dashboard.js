@@ -1,5 +1,6 @@
 
 import { db } from "./firebase-config.js";
+import { friendlyError } from "./ui.js";
 import { requireAuth, setupLogout } from "./auth.js";
 import { formatDate, formatMonthYear } from "./format.js";
 import { fetchRecords, toHours, format12h, timeOutLabel } from "./dtr-core.js";
@@ -273,11 +274,11 @@ function renderSelectedActivities() {
 
   if (!activities.length) {
     elements.selectedDateSubtitle.textContent =
-      "No activities recorded for this date.";
+      "No tasks recorded for this date.";
 
     const empty = document.createElement("p");
     empty.className = "muted";
-    empty.textContent = "No internship activities found for this date.";
+    empty.textContent = "No tasks found for this date.";
 
     const link = document.createElement("a");
     link.href = "add-task.html";
@@ -289,7 +290,7 @@ function renderSelectedActivities() {
   }
 
   elements.selectedDateSubtitle.textContent =
-    `${activities.length} ${activities.length === 1 ? "activity" : "activities"} recorded`;
+    `${activities.length} ${activities.length === 1 ? "task" : "tasks"} recorded`;
 
   activities.forEach(activity => {
     const card = document.createElement("div");
@@ -334,7 +335,7 @@ function renderCategoryBreakdown() {
   if (!entries.length) {
     const empty = document.createElement("p");
     empty.className = "muted";
-    empty.textContent = "No activities recorded yet.";
+    empty.textContent = "No tasks recorded yet.";
     container.appendChild(empty);
     return;
   }
@@ -353,7 +354,7 @@ function renderCategoryBreakdown() {
 
     const amount = document.createElement("span");
     amount.textContent =
-      `${count} ${count === 1 ? "activity" : "activities"}`;
+      `${count} ${count === 1 ? "task" : "tasks"}`;
 
     info.append(name, amount);
 
@@ -450,10 +451,10 @@ requireAuth(async user => {
     console.error("Dashboard loading error:", error);
 
     elements.calendarDays.textContent =
-      `Unable to load calendar: ${error.code || error.message}`;
+      friendlyError(error, "Couldn't load your calendar. Please try again.");
 
     elements.selectedActivities.textContent =
-      "Unable to load activities.";
+      "Unable to load tasks.";
 
     elements.categoryBreakdown.textContent =
       "Unable to load categories.";

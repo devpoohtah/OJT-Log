@@ -61,7 +61,7 @@ export function collectActivities(logs, from, to) {
       (log.activities || []).forEach(activity => {
         rows.push({
           date: log.date,
-          title: (activity.title || "").trim() || "Untitled activity",
+          title: (activity.title || "").trim() || "Untitled task",
           description: (activity.description || "").trim(),
           category: (activity.category || "").trim() || "-"
         });
@@ -372,6 +372,8 @@ function loadPdfLibs() {
 
 // ---------- export modal on Task History ----------
 
+import { toast, friendlyError } from "./ui.js";
+
 export function setupExport({ getLogs, getProfile, getRecords, saveKnowledge }) {
   const $ = id => document.getElementById(id);
   const el = {
@@ -553,7 +555,7 @@ export function setupExport({ getLogs, getProfile, getRecords, saveKnowledge }) 
         } catch (err) {
           console.error("Saving Knowledge/Skills failed:", err);
           el.message.textContent =
-            "Couldn't save the Knowledge/Skills. Check your connection and try again.";
+            friendlyError(err, "Couldn't save the Knowledge/Skills. Check your connection and try again.");
           return;
         }
       }
@@ -579,10 +581,11 @@ export function setupExport({ getLogs, getProfile, getRecords, saveKnowledge }) 
       doc.save(reportFileName(range.from, range.to));
       busy = false;
       closeModal();
+      toast("Report downloaded.");
     } catch (err) {
       console.error("PDF export failed:", err);
       el.message.textContent =
-        "Couldn't create the PDF. Check your internet connection and try again.";
+        friendlyError(err, "Couldn't create the PDF. Check your internet connection and try again.");
     } finally {
       setBusy(false);
     }

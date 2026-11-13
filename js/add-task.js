@@ -8,6 +8,11 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+import {
+  setLoading, confirmDialog, confirmDiscard, toastNext, friendlyError,
+  setDirtyCheck, hasUnsavedChanges
+} from "./ui.js";
+
 setupLogout();
 
 // =====================================
@@ -84,7 +89,22 @@ function updateTaskNumbers() {
       removeButton.className = "remove-task";
       removeButton.textContent = "Remove";
 
-      removeButton.addEventListener("click", () => {
+      removeButton.addEventListener("click", async () => {
+        // An entry with typed text asks first; an empty one is removed right away.
+        const hasText = [...entry.querySelectorAll("input, textarea, select")]
+          .some(field => field.value.trim() !== "");
+
+        if (hasText) {
+          const label = entry.querySelector(".task-number")?.textContent || "this task";
+          const confirmed = await confirmDialog({
+            title: `Remove ${label}?`,
+            message: "The text you typed in this task will be lost.",
+            confirmText: "Remove",
+            danger: true
+          });
+          if (!confirmed) return;
+        }
+
         entry.remove();
         updateTaskNumbers();
       });
@@ -166,10 +186,9 @@ form.addEventListener("submit", async event => {
     return;
   }
 
-  saveButton.disabled = true;
   addButton.disabled = true;
-
-  message.textContent = "Saving daily log...";
+  message.textContent = "";
+  setLoading(saveButton, true, "Saving...");
 
   try {
     const knowledge = document.getElementById("dayKnowledge").value.trim();
@@ -183,17 +202,19 @@ form.addEventListener("submit", async event => {
       updatedAt: serverTimestamp()
     });
 
-    message.textContent = "Daily log saved successfully!";
-
+    // Saved: stop the "unsaved changes" prompt, show the toast on the next page, and
+    // leave the button loading until the page changes.
+    setDirtyCheck(null);
+    toastNext("Daily log saved.");
     window.location.href = "dashboard.html";
 
   } catch (error) {
     console.error("Save error:", error);
 
     message.textContent =
-      `Unable to save daily log: ${error.code || error.message}`;
+      friendlyError(error, "Couldn't save the daily log. Please try again.");
 
-    saveButton.disabled = false;
+    setLoading(saveButton, false);
     addButton.disabled = false;
   }
 });
@@ -203,3 +224,24 @@ form.addEventListener("submit", async event => {
 // =====================================
 
 updateTaskNumbers();
+
+// =====================================
+// UNSAVED CHANGES
+// =====================================
+
+// Anything typed counts (the pre-filled date does not); extra empty entries count too.
+setDirtyCheck(() =>
+  [...form.querySelectorAll("input[type=text], textarea, select")]
+    .some(field => field.value.trim() !== "") ||
+  container.querySelectorAll(".task-entry").length > 1
+);
+
+document.getElementById("cancelLink")?.addEventListener("click", async event => {
+  if (!hasUnsavedChanges()) return;          // nothing typed: just follow the link
+
+  event.preventDefault();
+  if (await confirmDiscard()) {
+    setDirtyCheck(null);
+    window.location.href = "dashboard.html";
+  }
+});

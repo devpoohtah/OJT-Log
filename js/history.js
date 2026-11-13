@@ -5,6 +5,9 @@ import { loadProfile } from "./profile.js";
 import { setupExport } from "./report.js";
 import { formatDate } from "./format.js";
 import { fetchRecords } from "./dtr-core.js";
+import {
+  setLoading, confirmDialog, confirmDiscard, formSnapshot, toast, friendlyError
+} from "./ui.js";
 
 import {
   collection,
@@ -214,8 +217,8 @@ function renderHistory() {
     cell.colSpan = 5;
     cell.className = "empty-state";
     cell.textContent = rows.length
-      ? "No activities on this page."
-      : "No matching activities found.";
+      ? "No tasks on this page."
+      : "No matching tasks found.";
 
     row.appendChild(cell);
     tableBody.appendChild(row);
@@ -228,7 +231,7 @@ function renderHistory() {
 
     row.appendChild(
       createClipCell(
-        activity.title || "Untitled activity",
+        activity.title || "Untitled task",
         "activity-title"
       )
     );
@@ -264,7 +267,7 @@ function renderHistory() {
     deleteButton.textContent = "Delete";
 
     deleteButton.addEventListener("click", () => {
-      deleteActivity(log, index, deleteButton);
+      deleteActivity(log, index);
     });
 
     actionsCell.append(editButton, deleteButton);
@@ -274,7 +277,7 @@ function renderHistory() {
   });
 
   historyCount.textContent =
-    `${rows.length} ${rows.length === 1 ? "activity" : "activities"} found`;
+    `${rows.length} ${rows.length === 1 ? "task" : "tasks"} found`;
 
   pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
 
@@ -345,6 +348,7 @@ function openEditModal(log, activity, index) {
 
   editMessage.textContent = "";
   editModal.hidden = false;
+  editSnapshot = formSnapshot(editForm);
 
   document.body.classList.add("modal-open");
   editTitle.focus();
@@ -359,18 +363,28 @@ function closeEditModal() {
   editMessage.textContent = "";
 }
 
-closeModal.addEventListener("click", closeEditModal);
-cancelEdit.addEventListener("click", closeEditModal);
+// Closing with typed changes asks first; an untouched form just closes.
+let editSnapshot = "";
+let editBusy = false;
+
+async function requestCloseEdit() {
+  if (editBusy || editModal.hidden) return;
+  if (formSnapshot(editForm) !== editSnapshot && !(await confirmDiscard())) return;
+  closeEditModal();
+}
+
+closeModal.addEventListener("click", requestCloseEdit);
+cancelEdit.addEventListener("click", requestCloseEdit);
 
 editModal.addEventListener("click", event => {
   if (event.target === editModal) {
-    closeEditModal();
+    requestCloseEdit();
   }
 });
 
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && !editModal.hidden) {
-    closeEditModal();
+    requestCloseEdit();
   }
 });
 
@@ -415,8 +429,9 @@ editForm.addEventListener("submit", async event => {
     category
   };
 
-  saveEdit.disabled = true;
-  saveEdit.textContent = "Saving...";
+  editBusy = true;
+  editMessage.textContent = "";
+  setLoading(saveEdit, true, "Saving...");
 
   let targetLog = log;          // the log that ends up holding this activity
 
@@ -487,16 +502,17 @@ editForm.addEventListener("submit", async event => {
 
     closeEditModal();
     renderHistory();
+    toast("Changes saved.");
 
   } catch (error) {
     console.error("Edit error:", error);
 
     editMessage.textContent =
-      `Unable to save: ${error.code || error.message}`;
+      friendlyError(error, "Couldn't save your changes. Please try again.");
 
   } finally {
-    saveEdit.disabled = false;
-    saveEdit.textContent = "Save Changes";
+    editBusy = false;
+    setLoading(saveEdit, false);
   }
 });
 
@@ -504,46 +520,49 @@ editForm.addEventListener("submit", async event => {
 // DELETE ACTIVITY
 // =====================================
 
-async function deleteActivity(log, index, button) {
+async function deleteActivity(log, index) {
   const activity = log.activities[index];
-
-  if (!confirm(
-    `Are you sure you want to delete "${activity.title || "this activity"}"?`
-  )) {
-    return;
-  }
-
-  button.disabled = true;
 
   const updatedActivities = log.activities.filter(
     (_, i) => i !== index
   );
 
-  try {
-    if (updatedActivities.length === 0) {
-      await deleteDoc(doc(db, "dailyLogs", log.id));
+  // The last task of a daily log removes the whole log, including its Knowledge/Skills text.
+  const losesKnowledge = updatedActivities.length === 0 && (log.knowledge || "").trim();
 
-      logs = logs.filter(item => item.id !== log.id);
+  const deleted = await confirmDialog({
+    title: "Delete this task?",
+    message:
+      `"${activity.title || "Untitled task"}" on ${formatDate(log.date)} will be deleted. ` +
+      "This can't be undone." +
+      (losesKnowledge
+        ? "\n\nIt is the only task on that day, so the Knowledge/Skills text saved " +
+          "for the day is deleted too."
+        : ""),
+    confirmText: "Delete",
+    loadingText: "Deleting...",
+    errorText: "Couldn't delete the task. Please try again.",
+    danger: true,
+    action: async () => {
+      if (updatedActivities.length === 0) {
+        await deleteDoc(doc(db, "dailyLogs", log.id));
 
-    } else {
-      await updateDoc(doc(db, "dailyLogs", log.id), {
-        activities: updatedActivities,
-        updatedAt: serverTimestamp()
-      });
+        logs = logs.filter(item => item.id !== log.id);
 
-      log.activities = updatedActivities;
+      } else {
+        await updateDoc(doc(db, "dailyLogs", log.id), {
+          activities: updatedActivities,
+          updatedAt: serverTimestamp()
+        });
+
+        log.activities = updatedActivities;
+      }
     }
+  });
 
+  if (deleted) {
     renderHistory();
-
-  } catch (error) {
-    console.error("Delete error:", error);
-
-    alert(
-      `Unable to delete activity: ${error.code || error.message}`
-    );
-
-    button.disabled = false;
+    toast("Task deleted.");
   }
 }
 
@@ -601,12 +620,11 @@ requireAuth(async user => {
     tableBody.innerHTML = `
       <tr>
         <td colspan="5" class="empty-state">
-          Unable to load task history:
-          ${error.code || error.message}
+          ${friendlyError(error, "Couldn't load your task history. Please try again.")}
         </td>
       </tr>
     `;
 
-    historyCount.textContent = "Unable to load activities.";
+    historyCount.textContent = "Unable to load tasks.";
   }
 });

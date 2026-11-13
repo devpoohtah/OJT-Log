@@ -6,6 +6,7 @@ import {
   formatLongDate, formatShortDate, format12h, toHours, isNextDay, workedMinutes,
   timeOutLabel, timeOutDateOf, fetchRecords, saveRecord, deleteRecord
 } from "./dtr-core.js";
+import { setLoading, confirmDialog, toast, friendlyError } from "./ui.js";
 
 setupLogout();
 
@@ -58,18 +59,26 @@ async function refresh() {
 }
 
 el.timeInBtn.addEventListener("click", async () => {
-  el.timeInBtn.disabled = true;
-  el.todayMessage.textContent = "Saving...";
+  el.todayMessage.textContent = "";
+  setLoading(el.timeInBtn, true, "Timing in...");
+  let saved = false;
   try {
+    const timeIn = localTimeString();
     await saveRecord(currentUser.uid, {
-      date: localDateString(), timeIn: localTimeString(),
+      date: localDateString(), timeIn,
       timeOut: null, timeOutDate: null, breakMinutes: DEFAULT_BREAK
     });
-    el.todayMessage.textContent = "Timed in.";
+    saved = true;
+    setLoading(el.timeInBtn, false);
+    el.timeInBtn.disabled = true;        // renderToday() below sets the final state
+    toast(`Timed in at ${format12h(timeIn)}.`);
     await refresh();
   } catch (err) {
     console.error(err);
-    el.todayMessage.textContent = `Unable to save: ${err.code || err.message}`;
+    setLoading(el.timeInBtn, false);
+    el.todayMessage.textContent = saved
+      ? "Saved, but the page couldn't refresh. Reload to see it."
+      : friendlyError(err, "Couldn't save your Time In. Please try again.");
     renderToday();
   }
 });
@@ -96,20 +105,50 @@ el.timeOutBtn.addEventListener("click", async () => {
     return;
   }
 
-  el.timeOutBtn.disabled = true;
-  el.todayMessage.textContent = "Saving...";
+  el.todayMessage.textContent = "";
+
+  // The time is read again when the person confirms, so a dialog left open for a while
+  // does not record an old time.
+  let recorded = null;
+  const confirmed = await confirmDialog({
+    title: "Time out now?",
+    message:
+      `Your Time Out will be recorded as the current time (now ${format12h(timeOut)}) ` +
+      `for the shift that started ${formatDate(open.date)}.\n` +
+      `Net hours so far: ${toHours(minutes).toFixed(2)}.`,
+    confirmText: "Time Out",
+    loadingText: "Timing out...",
+    errorText: "Couldn't save your Time Out. Please try again.",
+    action: async () => {
+      const confirmDate = localDateString();
+      const confirmTime = localTimeString();
+      const confirmMinutes = workedMinutes(
+        open.timeIn, confirmTime, open.breakMinutes, daysBetween(open.date, confirmDate)
+      );
+      if (!confirmMinutes) throw new Error("Net hours would be zero or negative.");
+
+      await saveRecord(currentUser.uid, {
+        date: open.date, timeIn: open.timeIn, timeOut: confirmTime,
+        timeOutDate: confirmDate, breakMinutes: open.breakMinutes
+      });
+      recorded = { time: confirmTime, minutes: confirmMinutes };
+    }
+  });
+
+  if (!confirmed) return;
+
+  if (toHours(recorded.minutes) > 16) {
+    toast("Timed out. Over 16 hours recorded; edit the record if that's wrong.",
+      { type: "info", duration: 7000 });
+  } else {
+    toast(`Timed out at ${format12h(recorded.time)}.`);
+  }
+
   try {
-    await saveRecord(currentUser.uid, {
-      date: open.date, timeIn: open.timeIn, timeOut,
-      timeOutDate: today, breakMinutes: open.breakMinutes
-    });
-    el.todayMessage.textContent = toHours(minutes) > 16
-      ? "Timed out. Over 16 hours recorded; edit the record if that's wrong."
-      : "Timed out.";
     await refresh();
   } catch (err) {
     console.error(err);
-    el.todayMessage.textContent = `Unable to save: ${err.code || err.message}`;
+    el.todayMessage.textContent = "Saved, but the page couldn't refresh. Reload to see it.";
     renderToday();
   }
 });
@@ -221,12 +260,18 @@ el.manualForm.addEventListener("submit", async event => {
   }
 
   const replacing = records.some(r => r.date === entry.date) && entry.date !== editingDate;
-  if (replacing && !confirm(`A record for ${formatDate(entry.date)} already exists. Replace it?`)) {
+  if (replacing && !(await confirmDialog({
+    title: "Replace existing record?",
+    message: `A DTR record for ${formatDate(entry.date)} already exists. Saving will replace it.`,
+    confirmText: "Replace",
+    cancelText: "Keep existing",
+    danger: true
+  }))) {
     return;
   }
 
-  el.manualSave.disabled = true;
-  el.manualMessage.textContent = "Saving...";
+  el.manualMessage.textContent = "";
+  setLoading(el.manualSave, true, "Saving...");
   try {
     await saveRecord(currentUser.uid, entry);
 
@@ -235,14 +280,14 @@ el.manualForm.addEventListener("submit", async event => {
       await deleteRecord(currentUser.uid, editingDate);
     }
 
-    el.manualMessage.textContent = "Record saved.";
     resetForm();
+    toast("DTR record saved.");
     await refresh();
   } catch (err) {
     console.error(err);
-    el.manualMessage.textContent = `Unable to save: ${err.code || err.message}`;
+    el.manualMessage.textContent = friendlyError(err, "Couldn't save the record. Please try again.");
   } finally {
-    el.manualSave.disabled = false;
+    setLoading(el.manualSave, false);
   }
 });
 
@@ -287,18 +332,17 @@ settingsForm.addEventListener("submit", async event => {
   const value = Number(requiredInput.value);
   const hours = value > 0 ? value : null;
 
-  settingsSave.disabled = true;
-  settingsMessage.textContent = "Saving...";
+  settingsMessage.textContent = "";
+  setLoading(settingsSave, true, "Saving...");
   try {
     await saveRequiredHours(currentUser.uid, hours);
-    settingsMessage.textContent = hours
-      ? `Saved. Required hours: ${hours}.` : "Saved. Required hours cleared.";
+    toast(hours ? `Required hours saved: ${hours}.` : "Required hours cleared.");
   } catch (err) {
     console.error(err);
-    settingsMessage.textContent =
-      "Couldn't save. Check that the Firestore rules for /profiles are published.";
+    settingsMessage.textContent = friendlyError(
+      err, "Couldn't save. Check that the Firestore rules for /profiles are published.");
   } finally {
-    settingsSave.disabled = false;
+    setLoading(settingsSave, false);
   }
 });
 
@@ -315,7 +359,8 @@ requireAuth(async user => {
     await refresh();
   } catch (err) {
     console.error(err);
-    el.todayMessage.textContent = `Unable to load records: ${err.code || err.message}`;
+    el.todayMessage.textContent =
+      friendlyError(err, "Couldn't load your DTR records. Please try again.");
     return;
   }
 

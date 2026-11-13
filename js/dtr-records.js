@@ -6,6 +6,9 @@ import {
   format12h, toHours, isNextDay, workedMinutes, timeOutLabel, timeOutDateOf,
   fetchRecords, saveRecord, deleteRecord
 } from "./dtr-core.js";
+import {
+  setLoading, confirmDialog, confirmDiscard, formSnapshot, toast, friendlyError
+} from "./ui.js";
 
 setupLogout();
 
@@ -149,7 +152,7 @@ function renderTable() {
     del.type = "button";
     del.className = "small-btn delete-btn";
     del.textContent = "Delete";
-    del.addEventListener("click", () => removeRecord(record, del));
+    del.addEventListener("click", () => removeRecord(record));
 
     actions.append(edit, del);
     tr.append(actions);
@@ -197,18 +200,23 @@ el.monthFilter.addEventListener("change", () => {
 // DELETE
 // =====================================
 
-async function removeRecord(record, button) {
-  if (!confirm(`Delete the DTR record for ${formatDate(record.date)}?`)) return;
+async function removeRecord(record) {
+  const deleted = await confirmDialog({
+    title: "Delete this DTR record?",
+    message: `The DTR record for ${formatDate(record.date)} will be deleted. This can't be undone.`,
+    confirmText: "Delete",
+    loadingText: "Deleting...",
+    errorText: "Couldn't delete the record. Please try again.",
+    danger: true,
+    action: async () => {
+      await deleteRecord(currentUser.uid, record.date);
+      records = await fetchRecords(currentUser.uid);
+    }
+  });
 
-  button.disabled = true;
-  try {
-    await deleteRecord(currentUser.uid, record.date);
-    records = await fetchRecords(currentUser.uid);
+  if (deleted) {
     render();
-  } catch (err) {
-    console.error(err);
-    alert(`Unable to delete: ${err.code || err.message}`);
-    button.disabled = false;
+    toast("DTR record deleted.");
   }
 }
 
@@ -275,6 +283,7 @@ function openModal(record = null) {
 
   updatePreview();
   el.modal.hidden = false;
+  recordSnapshot = formSnapshot(el.form);
   document.body.classList.add("modal-open");
   (record ? el.rIn : el.rDate).focus();
 }
@@ -294,13 +303,23 @@ el.rOutDate.addEventListener("input", () => {
 });
 el.rBreak.addEventListener("input", updatePreview);
 
-el.close.addEventListener("click", closeModal);
-el.cancel.addEventListener("click", closeModal);
+// Closing with typed changes asks first; an untouched form just closes.
+let recordSnapshot = "";
+let saving = false;
+
+async function requestCloseModal() {
+  if (saving || el.modal.hidden) return;
+  if (formSnapshot(el.form) !== recordSnapshot && !(await confirmDiscard())) return;
+  closeModal();
+}
+
+el.close.addEventListener("click", requestCloseModal);
+el.cancel.addEventListener("click", requestCloseModal);
 el.modal.addEventListener("click", event => {
-  if (event.target === el.modal) closeModal();
+  if (event.target === el.modal) requestCloseModal();
 });
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape" && !el.modal.hidden) closeModal();
+  if (event.key === "Escape" && !el.modal.hidden) requestCloseModal();
 });
 
 el.form.addEventListener("submit", async event => {
@@ -327,12 +346,19 @@ el.form.addEventListener("submit", async event => {
   }
 
   const replacing = records.some(r => r.date === entry.date) && entry.date !== editingDate;
-  if (replacing && !confirm(`A record for ${formatDate(entry.date)} already exists. Replace it?`)) {
+  if (replacing && !(await confirmDialog({
+    title: "Replace existing record?",
+    message: `A DTR record for ${formatDate(entry.date)} already exists. Saving will replace it.`,
+    confirmText: "Replace",
+    cancelText: "Keep existing",
+    danger: true
+  }))) {
     return;
   }
 
-  el.save.disabled = true;
-  el.rMessage.textContent = "Saving...";
+  saving = true;
+  el.rMessage.textContent = "";
+  setLoading(el.save, true, "Saving...");
   try {
     await saveRecord(currentUser.uid, entry);
 
@@ -344,11 +370,13 @@ el.form.addEventListener("submit", async event => {
     records = await fetchRecords(currentUser.uid);
     closeModal();
     render();
+    toast("DTR record saved.");
   } catch (err) {
     console.error(err);
-    el.rMessage.textContent = `Unable to save: ${err.code || err.message}`;
+    el.rMessage.textContent = friendlyError(err, "Couldn't save the record. Please try again.");
   } finally {
-    el.save.disabled = false;
+    saving = false;
+    setLoading(el.save, false);
   }
 });
 
@@ -363,6 +391,14 @@ requireAuth(async user => {
   const profile = await loadProfile(user.uid);
   setPrintProfile({ name: user.displayName, ...profile });
 
+  // Same loading row the other pages show while their data loads.
+  el.dtrBody.replaceChildren();
+  const loadingRow = document.createElement("tr");
+  const loadingCell = createCell("Loading DTR records...", "empty-state");
+  loadingCell.colSpan = 7;
+  loadingRow.append(loadingCell);
+  el.dtrBody.append(loadingRow);
+
   try {
     records = await fetchRecords(user.uid);
     render();
@@ -371,7 +407,7 @@ requireAuth(async user => {
     el.dtrBody.replaceChildren();
     const tr = document.createElement("tr");
     const td = createCell(
-      `Unable to load DTR records: ${err.code || err.message}`, "empty-state"
+      friendlyError(err, "Couldn't load your DTR records. Please try again."), "empty-state"
     );
     td.colSpan = 7;
     tr.append(td);

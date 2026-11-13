@@ -17,7 +17,7 @@
 
     <nav>
       <a href="dashboard.html">Dashboard</a>
-      <a href="add-task.html">Add New Task</a>
+      <a href="add-task.html">Add Daily Log</a>
       <a class="active" href="history.html">Task History</a>
       <a href="dtr.html">DTR</a>
       <a href="dtr-records.html">DTR History</a>
@@ -31,7 +31,7 @@
     <header>
       <div>
         <h1>Task History</h1>
-        <p class="muted">All your recorded internship activities.</p>
+        <p class="muted">All your recorded internship tasks.</p>
       </div>
 
       <div class="header-actions">
@@ -47,7 +47,7 @@
       <input
         type="search"
         id="search"
-        placeholder="Search activities, descriptions, categories or dates..."
+        placeholder="Search tasks, descriptions, categories or dates..."
       >
 
       <div class="table-container">
@@ -56,7 +56,7 @@
           <thead>
             <tr>
               <th>Duty Date</th>
-              <th>Activities Completed</th>
+              <th>Tasks Completed</th>
               <th>Description</th>
               <th>Category</th>
               <th>Actions</th>
@@ -103,11 +103,11 @@
 
     <div class="modal-heading">
       <div>
-        <h2>Edit Activity</h2>
-        <p class="muted">Update your internship activity.</p>
+        <h2>Edit Task</h2>
+        <p class="muted">Update your internship task.</p>
       </div>
 
-      <button type="button" id="closeModal" class="modal-close">
+      <button type="button" id="closeModal" class="modal-close" aria-label="Close">
         &times;
       </button>
     </div>
@@ -121,7 +121,7 @@
       <input
         type="text"
         id="editTitle"
-        placeholder="Enter activity title"
+        placeholder="Enter task title"
         required
       >
 
@@ -129,7 +129,7 @@
       <textarea
         id="editDescription"
         rows="4"
-        placeholder="Describe your activity..."
+        placeholder="Describe your task..."
         required
       ></textarea>
 

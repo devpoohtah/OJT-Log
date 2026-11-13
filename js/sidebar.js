@@ -4,6 +4,7 @@ import {
   loadProfile, saveProfile, saveSignature, saveSupervisorSignature, saveColorTheme
 } from "./profile.js";
 import { processSignature } from "./signature.js";
+import { setLoading, toast, friendlyError, formSnapshot, confirmDiscard } from "./ui.js";
 import { addDateHints, formatDateWithWeekday } from "./format.js";
 import { updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { ICONS, makeThemeButton } from "./icons.js";
@@ -233,19 +234,46 @@ function openProfileModal(user, ui, { required }) {
   save.className = "btn primary";
   save.textContent = "Save";
 
+  // Closing with typed changes asks first. The first-time popup can't be dismissed.
+  let saving = false;
+  let snapshot = "";
+  const isDirty = () =>
+    formSnapshot(box) !== snapshot || studentSig.changed || supervisorSig.changed;
+
+  const closeProfile = () => {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  };
+
+  const requestClose = async () => {
+    if (saving || required) return;
+    if (isDirty() && !(await confirmDiscard())) return;
+    closeProfile();
+  };
+
+  function onKey(event) {
+    if (event.key === "Escape") requestClose();
+  }
+
   if (!required) {
     const cancel = document.createElement("button");
     cancel.type = "button";
     cancel.className = "btn secondary";
     cancel.textContent = "Cancel";
-    cancel.addEventListener("click", () => overlay.remove());
+    cancel.addEventListener("click", requestClose);
     actions.append(cancel);
+
+    document.addEventListener("keydown", onKey);
+    overlay.addEventListener("mousedown", event => {
+      if (event.target === overlay) requestClose();
+    });
   }
   actions.append(save);
 
   box.append(title, columns, error, actions);
   overlay.append(box);
   document.body.append(overlay);
+  snapshot = formSnapshot(box);
   nameInput.focus();
 
   box.addEventListener("submit", async event => {
@@ -257,15 +285,17 @@ function openProfileModal(user, ui, { required }) {
     const supervisor = supervisorInput.value.trim();
     if (!name) return;
 
-    save.disabled = true;
+    saving = true;
     error.textContent = "";
+    setLoading(save, true, "Saving...");
 
     try {
       await updateProfile(auth.currentUser, { displayName: name });
     } catch (err) {
       console.error("Name update failed:", err);
-      error.textContent = "Could not save your name. Try again.";
-      save.disabled = false;
+      error.textContent = friendlyError(err, "Couldn't save your name. Please try again.");
+      saving = false;
+      setLoading(save, false);
       return;
     }
 
@@ -289,13 +319,15 @@ function openProfileModal(user, ui, { required }) {
       detail: { name, ...profile }
     }));
 
+    saving = false;
     if (profileSaved) {
-      overlay.remove();
+      closeProfile();
+      toast("Profile saved.");
     } else {
       error.textContent =
         "Name saved, but the rest of your profile could not be saved. " +
         "Check that the Firestore rules for /profiles are published.";
-      save.disabled = false;
+      setLoading(save, false);
     }
   });
 }
@@ -395,19 +427,20 @@ function openSettingsModal(user) {
       return;
     }
 
-    save.disabled = true;
     error.textContent = "";
+    setLoading(save, true, "Saving...");
     try {
       await saveColorTheme(user.uid, pickedColor);
       Theme.setColor(pickedColor);              // also cached on this device
       committedColor = pickedColor;
       profile = { ...profile, colorTheme: committedColor };
       close();
+      toast("Color theme saved.");
     } catch (err) {
       console.error("Color theme save failed:", err);
-      error.textContent =
-        "Could not save the color theme. Check that the Firestore rules for /profiles are published.";
-      save.disabled = false;
+      error.textContent = friendlyError(
+        err, "Couldn't save the color theme. Check that the Firestore rules for /profiles are published.");
+      setLoading(save, false);
     }
   });
 }
