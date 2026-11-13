@@ -1,6 +1,6 @@
 import { auth } from "./firebase-config.js";
 import { requireAuth } from "./auth.js";
-import { loadProfile, saveProfile, saveSignature } from "./profile.js";
+import { loadProfile, saveProfile, saveSignature, saveColorTheme } from "./profile.js";
 import { processSignature } from "./signature.js";
 import { addDateHints, formatDateWithWeekday } from "./format.js";
 import { updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -12,7 +12,7 @@ import { ICONS, makeThemeButton } from "./icons.js";
 const sidebar = document.querySelector(".sidebar");
 const brand = sidebar?.querySelector("h2");
 
-let profile = { company: "", department: "", signature: "" };
+let profile = { company: "", department: "", signature: "", colorTheme: "" };
 
 const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2)
   .map(word => word[0].toUpperCase()).join("");
@@ -159,6 +159,53 @@ function openProfileModal(user, ui, { required }) {
   sigBox.append(sigPreview, sigEmpty, sigButtons, sigFile);
   renderSignature();
 
+  // ----- color theme: previews instantly, kept only when Save is pressed -----
+  const Theme = window.OJTTheme;
+  let committedColor = Theme ? Theme.getColor() : "classic";
+  let pickedColor = committedColor;
+
+  const picker = document.createElement("div");
+  picker.className = "theme-picker";
+  picker.setAttribute("role", "radiogroup");
+  picker.setAttribute("aria-label", "Color theme");
+
+  const markPicked = () => {
+    picker.querySelectorAll(".theme-option").forEach(btn => {
+      btn.setAttribute("aria-checked", String(btn.dataset.color === pickedColor));
+    });
+  };
+
+  (Theme?.COLORS || []).forEach(color => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "theme-option";
+    option.dataset.color = color.id;
+    option.setAttribute("role", "radio");
+
+    const swatch = document.createElement("span");
+    swatch.className = "theme-swatch";
+    swatch.style.background =
+      `linear-gradient(135deg, ${color.swatch[0]} 50%, ${color.swatch[1]} 50%)`;
+
+    const label = document.createElement("span");
+    label.textContent = color.name;
+
+    option.append(swatch, label);
+    option.addEventListener("click", () => {
+      pickedColor = color.id;
+      Theme.previewColor(pickedColor);          // instant, no reload, not saved yet
+      markPicked();
+    });
+    picker.append(option);
+  });
+  markPicked();
+
+  // Closing without saving puts the saved color back.
+  const closeModal = () => {
+    Theme?.previewColor(committedColor);
+    overlay.remove();
+  };
+
   const error = document.createElement("p");
   error.className = "message";
 
@@ -175,7 +222,7 @@ function openProfileModal(user, ui, { required }) {
     cancel.type = "button";
     cancel.className = "btn secondary";
     cancel.textContent = "Cancel";
-    cancel.addEventListener("click", () => overlay.remove());
+    cancel.addEventListener("click", closeModal);
     actions.append(cancel);
   }
   actions.append(save);
@@ -187,6 +234,7 @@ function openProfileModal(user, ui, { required }) {
     ...field("Department (optional)", deptInput),
     ...field("Signature (optional)", sigBox),
     sigNote, sigError,
+    ...(Theme ? field("Color theme", picker) : []),
     error, actions
   );
   overlay.append(box);
@@ -217,7 +265,13 @@ function openProfileModal(user, ui, { required }) {
     try {
       await saveProfile(user.uid, { company, department });
       if (signatureChanged) await saveSignature(user.uid, signatureValue);
-      profile = { ...profile, company, department, signature: signatureValue };
+      if (Theme && pickedColor !== committedColor) {
+        await saveColorTheme(user.uid, pickedColor);
+        Theme.setColor(pickedColor);            // also cached on this device
+        committedColor = pickedColor;
+      }
+      profile = { ...profile, company, department, signature: signatureValue,
+                  colorTheme: committedColor };
     } catch (err) {
       console.error("Profile save failed:", err);
       profileSaved = false;
@@ -229,7 +283,7 @@ function openProfileModal(user, ui, { required }) {
     }));
 
     if (profileSaved) {
-      overlay.remove();
+      overlay.remove();               // the saved color is already applied
     } else {
       error.textContent =
         "Name saved, but company/department could not be saved. " +
@@ -341,6 +395,12 @@ if (sidebar && brand) {
     render(ui, user);
     profile = await loadProfile(user.uid);
     render(ui, auth.currentUser);
+
+    // The color saved in Firestore wins, so a new device picks it up after login.
+    if (window.OJTTheme && OJTTheme.isValidColor(profile.colorTheme)
+        && profile.colorTheme !== OJTTheme.getColor()) {
+      OJTTheme.setColor(profile.colorTheme);
+    }
 
     if (!user.displayName) openProfileModal(user, ui, { required: true });
     ui.card.onclick = () => {

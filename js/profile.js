@@ -4,6 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Per-user settings in Firestore /profiles/{uid}: company, department, requiredHours,
+// colorTheme (id of the selected color theme, e.g. "lavender"; empty = Classic Blue),
 // and signature (a small PNG kept as a data URL string, so no file storage is needed).
 // The user's name itself lives in Firebase Auth (displayName).
 
@@ -19,11 +20,12 @@ export async function loadProfile(uid) {
       department: data.department || "",
       requiredHours: typeof data.requiredHours === "number" ? data.requiredHours : null,
       signature: typeof data.signature === "string" ? data.signature : "",
+      colorTheme: typeof data.colorTheme === "string" ? data.colorTheme : "",
       loaded: true
     };
   } catch (err) {
     console.warn("Could not load profile:", err.code || err.message);
-    return { company: "", department: "", requiredHours: null, signature: "", loaded: false };
+    return { company: "", department: "", requiredHours: null, signature: "", colorTheme: "", loaded: false };
   }
 }
 
@@ -50,6 +52,15 @@ export async function saveSignature(uid, dataUrl) {
   await setDoc(profileRef(uid), {
     userId: uid,
     signature: dataUrl || "",
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+}
+
+// id: a color theme id from theme.js ("classic", "lavender", ...)
+export async function saveColorTheme(uid, id) {
+  await setDoc(profileRef(uid), {
+    userId: uid,
+    colorTheme: id,
     updatedAt: serverTimestamp()
   }, { merge: true });
 }
